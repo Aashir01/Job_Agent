@@ -1,0 +1,23 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>job-agent</title>
+<style>
+  body { width: 300px; margin: 0; padding: 14px; font: 13px/1.45 system-ui, sans-serif;
+         background: #0f1115; color: #e6e9ef; }
+  h1 { margin: 0 0 10px; font-size: 13px; letter-spacing: -.01em; }
+  .muted { color: #8b94a7; font-size: 12px; }
+  .card { border: 1px solid #262b36; border-radius: 9px; padding: 10px; margin-bottom: 10px;
+          background: #171a21; }
+  button { width: 100%; cursor: pointer; font: inherit; border-radius: 7px; padding: 7px 9px;
+           border: 1px solid #262b36; background: transparent; color: #e6e9ef; margin-top: 6px; }
+  button.primary { border-color: #3ddc97; background: rgba(61,220,151,.12); color: #3ddc97; }
+  a { color: #8b94a7; font-size: 12px; }
+  .err { color: #ff7a6b; font-size: 12px; margin-top: 8px; }
+</style>
+<h1>job-agent</h1>
+<div id="body"><p class="muted">Loading…</p></div>
+<p class="muted" style="margin-top:10px">
+  This extension fills forms. You click Submit.
+</p>
+<a href="#" id="options">Options</a>
+<script type="module" src="popup.js"></script>

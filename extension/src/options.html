@@ -1,0 +1,37 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>job-agent options</title>
+<style>
+  body { max-width: 460px; margin: 40px auto; padding: 0 16px;
+         font: 14px/1.5 system-ui, sans-serif; background: #0f1115; color: #e6e9ef; }
+  label { display: block; margin: 16px 0 4px; font-size: 13px; }
+  input[type=text], input[type=password] { width: 100%; box-sizing: border-box; padding: 8px 10px;
+    border: 1px solid #262b36; border-radius: 7px; background: #171a21; color: inherit;
+    font: inherit; }
+  .row { display: flex; align-items: center; gap: 8px; margin-top: 16px; }
+  button { margin-top: 18px; cursor: pointer; font: inherit; padding: 8px 14px; border-radius: 7px;
+    border: 1px solid #3ddc97; background: rgba(61,220,151,.12); color: #3ddc97; }
+  p.muted { color: #8b94a7; font-size: 12px; }
+  #status { margin-left: 10px; color: #3ddc97; font-size: 13px; }
+</style>
+<h1 style="font-size:16px">job-agent</h1>
+<p class="muted">
+  The agent key is the same machine secret the dashboard uses. It is stored in this
+  browser profile only and is never synced.
+</p>
+
+<label for="apiUrl">API URL</label>
+<input id="apiUrl" type="text" placeholder="https://job-agent-api.fly.dev" autocomplete="off" />
+
+<label for="agentKey">Agent key</label>
+<input id="agentKey" type="password" autocomplete="off" />
+
+<div class="row">
+  <input id="harvestEnabled" type="checkbox" />
+  <label for="harvestEnabled" style="margin:0">
+    Record LinkedIn and Indeed postings I browse past (discovery only)
+  </label>
+</div>
+
+<button id="save">Save</button><span id="status"></span>
+<script type="module" src="options.js"></script>

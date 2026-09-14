@@ -51,6 +51,7 @@ class LLMRouter:
         self._owns_client = client is None
         self.calls_this_batch = 0
         self.cost_this_batch = 0.0
+        self.calls_by_provider: dict[str, int] = {}
 
         s = self.settings
         self.providers = [
@@ -80,6 +81,8 @@ class LLMRouter:
     def reset_budget(self) -> None:
         self.calls_this_batch = 0
         self.cost_this_batch = 0.0
+        self.calls_by_provider = {}
+        self.calls_by_provider: dict[str, int] = {}
 
     # ── the one entry point ───────────────────────────────────────────────
     async def generate(
@@ -122,6 +125,10 @@ class LLMRouter:
                     client=self.client,
                 )
             except LLMError as exc:
+                # A rate-limited call still spent the provider's quota.
+                self.calls_by_provider[provider.name] = (
+                    self.calls_by_provider.get(provider.name, 0) + 1
+                )
                 errors.append(f"{provider.name}: {exc}")
                 await self._log(
                     agent, provider.name, provider.models[tier], tier,
@@ -132,6 +139,9 @@ class LLMRouter:
                 continue
 
             self.cost_this_batch += resp.cost_usd
+            self.calls_by_provider[resp.provider] = (
+                self.calls_by_provider.get(resp.provider, 0) + 1
+            )
             await self._log(
                 agent, resp.provider, resp.model, tier, batch_id, job_id,
                 ok=True, resp=resp,
@@ -190,3 +200,18 @@ class LLMRouter:
         except DatabaseError as exc:
             # Never let the ledger take down the batch — but never lose the line.
             log.error("failed to write llm_calls row (%s): %s", exc, row)
+
+    async def record_quota(self) -> None:
+        """Roll this batch's provider usage into the daily ledger (§8).
+
+        One write per provider per batch, not one per call: the per-call detail
+        already lives in llm_calls, and this is the cross-batch view that says
+        whether today's free tier is nearly spent.
+        """
+        if self.db is None:
+            return
+        for provider, count in self.calls_by_provider.items():
+            try:
+                await self.db.rpc("bump_quota", {"resource_name": provider, "amount": count})
+            except Exception as exc:
+                log.warning("could not record quota for %s: %s", provider, exc)

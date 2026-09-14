@@ -45,6 +45,7 @@ class BatchStats:
     rejected_rewrites: int = 0
     llm_calls: int = 0
     llm_cost_usd: float = 0.0
+    llm_by_provider: dict[str, int] = field(default_factory=dict)
     quota_exhausted: bool = False
     errors: list[str] = field(default_factory=list)
 
@@ -59,6 +60,7 @@ class BatchStats:
             "rejected_rewrites": self.rejected_rewrites,
             "llm_calls": self.llm_calls,
             "llm_cost_usd": round(self.llm_cost_usd, 6),
+            "llm_by_provider": self.llm_by_provider,
             "quota_exhausted": self.quota_exhausted,
             "errors": self.errors[:20],
         }
@@ -127,6 +129,8 @@ class BatchRunner:
 
         stats.llm_calls = self.llm.calls_this_batch
         stats.llm_cost_usd = self.llm.cost_this_batch
+        stats.llm_by_provider = dict(self.llm.calls_by_provider)
+        await self.llm.record_quota()
         if batch_id:
             await self.db.update(
                 "batches",

@@ -1,0 +1,11 @@
+{
+  "name": "job-agent-extension",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "MV3 extension. Fills approved applications in the user's own session; never submits.",
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "package": "cd .. && zip -r extension/dist/job-agent-extension.zip extension/manifest.json extension/src extension/icons -x '*.DS_Store'"
+  }
+}

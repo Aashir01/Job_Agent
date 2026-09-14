@@ -1,0 +1,37 @@
+{
+  "full_name": "Your Name",
+  "headline": "AI Engineer — retrieval systems and evaluation",
+  "location": "Lahore, Pakistan",
+  "email": "you@example.com",
+  "phone": "+92 300 0000000",
+  "seniority": "senior",
+  "years_experience": 4,
+  "salary_floor_usd": 60000,
+  "work_auth": {
+    "passport": "Pakistan",
+    "current_visas": [],
+    "needs_sponsorship": true,
+    "remote_ok_regions": ["WORLDWIDE", "EMEA", "APAC", "PK"]
+  },
+  "links": {
+    "github": "https://github.com/you",
+    "linkedin": "https://linkedin.com/in/you",
+    "portfolio": "https://you.dev",
+    "upwork": "https://upwork.com/freelancers/you"
+  },
+  "skills": ["Python", "FastAPI", "PostgreSQL", "pgvector", "LangChain", "Docker"],
+  "roles": [
+    {
+      "role_context": "Acme — AI Engineer",
+      "title": "AI Engineer",
+      "company": "Acme",
+      "location": "Remote",
+      "dates": "2023 — present"
+    }
+  ],
+  "education": [
+    { "degree": "BS Computer Science", "institution": "University of Sargodha", "dates": "2018 — 2022" }
+  ],
+  "projects": [],
+  "alumni_networks": ["University of Sargodha", "Vrije Universiteit Amsterdam"]
+}

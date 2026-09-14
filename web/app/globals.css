@@ -1,0 +1,24 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-ink text-slate-200 antialiased;
+}
+
+/* Review is keyboard work. Keep the focus ring obvious and never remove it. */
+:focus-visible {
+  @apply outline-none ring-2 ring-sky-400 ring-offset-2 ring-offset-ink;
+}
+
+.kbd {
+  @apply inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded
+         border border-edge bg-panel px-1 font-mono text-[11px] text-muted;
+}
+
+.diff-ins { @apply rounded bg-emerald-500/20 text-emerald-200; }
+.diff-del { @apply rounded bg-rose-500/15 text-rose-300/70 line-through; }

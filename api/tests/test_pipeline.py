@@ -187,3 +187,21 @@ def test_json_parsing_survives_the_ways_models_wrap_output():
     assert parse_json('Sure! {"a": 1} — hope that helps') == {"a": 1}
     with pytest.raises(ValueError):
         parse_json("no json at all here")
+
+
+async def test_provider_usage_reaches_the_daily_ledger(db, settings):
+    """§8: the ledger is the cross-batch view of what the free tier has left."""
+    _seed(db, "Remote (US only). We cannot provide visa sponsorship.")
+
+    class CountingLLM(RecordingLLM):
+        async def generate_json(self, prompt, *, agent, **kw):
+            result = await super().generate_json(prompt, agent=agent, **kw)
+            self.calls_by_provider["gemini"] = self.calls_by_provider.get("gemini", 0) + 1
+            return result
+
+    llm = CountingLLM(settings, db, {"analyst": BLOCKED_ANALYSIS})
+    stats = await BatchRunner(db, settings, llm).run(skip_scout=True)
+
+    assert stats.llm_by_provider == {"gemini": 1}
+    bumps = [params for fn, params in db.rpc_calls if fn == "bump_quota"]
+    assert bumps == [{"resource_name": "gemini", "amount": 1}]

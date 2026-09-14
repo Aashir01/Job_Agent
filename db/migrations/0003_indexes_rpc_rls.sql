@@ -157,6 +157,15 @@ create or replace view review_queue as
 -- ── RLS ────────────────────────────────────────────────────────────────────
 -- Single-operator system. The API holds the service_role key and bypasses RLS;
 -- anon gets nothing; a signed-in owner may read and write through PostgREST.
+-- Supabase ships the `authenticated` role; a vanilla Postgres does not, and
+-- without this guard the whole RLS block aborts there.
+do $$
+begin
+  if not exists (select 1 from pg_roles where rolname = 'authenticated') then
+    create role authenticated nologin;
+  end if;
+end $$;
+
 do $$
 declare t text;
 begin

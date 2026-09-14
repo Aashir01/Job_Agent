@@ -1,0 +1,24 @@
+{
+  "_comment": [
+    "The verified source of truth for every resume the Tailor builds (§5, §10).",
+    "Write these yourself, in your own words, with real numbers. The Tailor may",
+    "reorder and lightly reword them; it may never add to them. strength is your",
+    "own 1-5 rating and it decides which bullets get retrieved at all."
+  ],
+  "bullets": [
+    {
+      "role_context": "Acme — AI Engineer",
+      "text": "Built a retrieval pipeline over 40k internal documents that cut median lookup time from 11s to 1.4s.",
+      "metric": "11s to 1.4s",
+      "tags": ["rag", "retrieval", "python", "pgvector"],
+      "strength": 5
+    },
+    {
+      "role_context": "Acme — AI Engineer",
+      "text": "Wrote the evaluation harness that caught a 12% precision regression before it shipped.",
+      "metric": "12%",
+      "tags": ["evaluation", "testing", "python"],
+      "strength": 4
+    }
+  ]
+}

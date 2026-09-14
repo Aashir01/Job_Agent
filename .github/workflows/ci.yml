@@ -36,3 +36,18 @@ jobs:
       - run: npm ci || npm install
       - run: npm run typecheck
       - run: npm run build
+
+  extension:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: extension
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      # These are the spec's non-negotiables, enforced rather than trusted:
+      # the extension never submits, never navigates, never fetches from
+      # LinkedIn or Indeed.
+      - run: npm test

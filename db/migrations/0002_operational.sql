@@ -134,14 +134,6 @@ create table if not exists dossiers (
   created_at timestamptz default now()
 );
 
--- Gmail watch cursor, so reply polling is incremental.
-create table if not exists mail_cursor (
-  id int primary key default 1,
-  history_id text,
-  last_polled_at timestamptz,
-  check (id = 1)
-);
-
 -- Connector output lives on the package while it waits for the human gate;
 -- the Courier materialises it into `outreach` rows once an application exists.
 alter table packages add column if not exists outreach_drafts jsonb;
