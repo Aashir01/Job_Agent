@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+.next/
+out/
+.vercel/
+*.tsbuildinfo
+
+# Secrets — never commit these
+.env
+.env.local
+.env.*.local
+*.pem
+
+# Build output
+extension/dist/
+extension/*.zip
+dist/
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp

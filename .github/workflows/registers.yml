@@ -1,0 +1,31 @@
+# §6: the sponsorship registers the Gatekeeper cross-references are refreshed
+# weekly. A stale register still kills correctly; an empty one passes
+# everything, so a failed refresh keeps the previous rows.
+name: refresh-sponsor-registers
+
+on:
+  schedule:
+    - cron: "0 5 * * 1"   # Mondays, 05:00 UTC
+  workflow_dispatch:
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Refresh UK, NL and CA registers
+        env:
+          API_URL: ${{ secrets.API_URL }}
+          AGENT_KEY: ${{ secrets.AGENT_KEY }}
+        run: |
+          set -euo pipefail
+          curl --silent --show-error --fail-with-body \
+            --retry 3 --retry-delay 10 --retry-connrefused --max-time 600 \
+            -X POST "${API_URL%/}/batch/registers/refresh" \
+            -H "X-Agent-Key: ${AGENT_KEY}" | tee registers.json
+          python3 -c "
+          import json
+          r = json.load(open('registers.json'))['results']
+          for country, out in r.items():
+              print(f\"{country}: {'ok' if out['ok'] else 'FAILED'} — {out.get('rows', 0)} rows {out.get('error') or ''}\")
+          "
