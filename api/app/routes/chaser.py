@@ -38,13 +38,14 @@ async def run_chaser(db: Database = Depends(get_db)) -> dict:
 
 @router.get("/outreach/due")
 async def due_outreach(db: Database = Depends(get_db)) -> dict:
-    rows = await db.select(
+    pending = await db.select(
         "outreach",
         columns="*,contacts(name,email,email_confidence),applications(package_id,status)",
+        not_null=("due_at",),
+        is_null=("sent_at", "approved_at"),
         order="due_at.asc",
         limit=100,
     )
-    pending = [r for r in rows if r.get("due_at") and not r.get("sent_at") and not r.get("approved_at")]
     return {"due": pending, "total": len(pending)}
 
 

@@ -157,13 +157,18 @@ class Chaser:
 
     async def send_approved(self, client: httpx.AsyncClient | None = None) -> tuple[int, list[str]]:
         """Send only what a human has approved. §1, without exception."""
+        # Filter in the database: reading an arbitrary 100 rows and discarding
+        # most of them in Python silently skips sends once the table grows.
         due = await self.db.select(
-            "outreach", columns="*,contacts(email,email_confidence,name)", limit=100
+            "outreach",
+            columns="*,contacts(email,email_confidence,name)",
+            not_null=("due_at", "approved_at"),
+            is_null=("sent_at",),
+            order="due_at.asc",
+            limit=100,
         )
         sent, errors = 0, []
         for note in due:
-            if note.get("sent_at") or not note.get("approved_at") or not note.get("due_at"):
-                continue
             contact = note.get("contacts") or {}
             if not contact.get("email") or contact.get("email_confidence") == "unknown":
                 errors.append(f"outreach {note['id']}: no verified address")

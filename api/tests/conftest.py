@@ -8,7 +8,14 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from app.agents.scout.base import normalise_name  # noqa: E402
 from app.config import Settings  # noqa: E402
+
+# companies.name_normalised is a stored generated column with a unique index
+# (0003). The fake has to model both, or tests pass here and duplicate rows
+# appear in production.
+GENERATED = {"companies": {"name_normalised": lambda row: normalise_name(row.get("name"))}}
+UNIQUE = {"companies": ("name_normalised",), "jobs": ("source_url",)}
 
 
 class FakeDB:
@@ -25,10 +32,18 @@ class FakeDB:
         return all(row.get(k) == v for k, v in (eq or {}).items())
 
     async def select(self, table, *, columns="*", eq=None, in_=None, gte=None, lte=None,
-                     order=None, limit=None, offset=None):
+                     not_null=None, is_null=None, order=None, limit=None, offset=None):
         rows = [r for r in self.tables.get(table, []) if self._match(r, eq)]
         for col, values in (in_ or {}).items():
             rows = [r for r in rows if r.get(col) in set(values)]
+        for col, value in (lte or {}).items():
+            rows = [r for r in rows if r.get(col) is not None and r[col] <= value]
+        for col, value in (gte or {}).items():
+            rows = [r for r in rows if r.get(col) is not None and r[col] >= value]
+        for col in not_null or ():
+            rows = [r for r in rows if r.get(col) is not None]
+        for col in is_null or ():
+            rows = [r for r in rows if r.get(col) is None]
         return rows[: limit or len(rows)]
 
     async def select_one(self, table, **kw):
@@ -40,8 +55,30 @@ class FakeDB:
         payload = [rows] if isinstance(rows, dict) else list(rows)
         stored = []
         for row in payload:
+            record = {**row}
+            for column, compute in GENERATED.get(table, {}).items():
+                record[column] = compute(record)
+
+            existing = None
+            for column in UNIQUE.get(table, ()):
+                if record.get(column) in (None, ""):
+                    continue
+                existing = next(
+                    (r for r in self.tables.get(table, []) if r.get(column) == record[column]),
+                    None,
+                )
+                if existing:
+                    break
+
+            if existing is not None:
+                if not upsert or ignore_duplicates:
+                    continue          # PostgREST returns nothing for the skipped row
+                existing.update(record)
+                stored.append(existing)
+                continue
+
             self._id += 1
-            record = {"id": row.get("id") or f"id-{self._id}", **row}
+            record = {"id": row.get("id") or f"id-{self._id}", **record}
             self.tables.setdefault(table, []).append(record)
             stored.append(record)
         self.writes.append(("insert", table, payload))

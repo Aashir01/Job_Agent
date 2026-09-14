@@ -240,24 +240,31 @@ class Scout:
         return bool(matches)
 
     async def resolve_company(self, job: RawJob) -> str | None:
-        """Find or create the company row. The ``hires_internationally`` flag
-        the Gatekeeper compounds over time lives here, so never clobber it."""
+        """Find or create the company row.
+
+        Looked up by ``companies.name_normalised``, a stored generated column
+        with a unique index, so "Acme", "Acme, Inc." and "acme inc" resolve to
+        one row however many companies are on file. The
+        ``hires_internationally`` flag the Gatekeeper compounds over time lives
+        on that row, so a duplicate would split the system's most valuable
+        asset — hence the constraint rather than a convention.
+        """
         key = normalise_name(job.company_name)
         if not key:
             return None
-        existing = await self.db.select(
-            "companies", columns="id,name,ats_type,domain", limit=200
+
+        row = await self.db.select_one(
+            "companies", columns="id,name,ats_type,domain", eq={"name_normalised": key}
         )
-        for row in existing:
-            if normalise_name(row.get("name")) == key:
-                patch = {}
-                if job.ats_type and not row.get("ats_type"):
-                    patch["ats_type"] = job.ats_type
-                if job.company_domain and not row.get("domain"):
-                    patch["domain"] = job.company_domain
-                if patch:
-                    await self.db.update("companies", patch, eq={"id": row["id"]}, returning=False)
-                return row["id"]
+        if row:
+            patch = {}
+            if job.ats_type and not row.get("ats_type"):
+                patch["ats_type"] = job.ats_type
+            if job.company_domain and not row.get("domain"):
+                patch["domain"] = job.company_domain
+            if patch:
+                await self.db.update("companies", patch, eq={"id": row["id"]}, returning=False)
+            return row["id"]
 
         created = await self.db.insert(
             "companies",
@@ -266,8 +273,14 @@ class Scout:
                 "domain": job.company_domain,
                 "ats_type": job.ats_type or "other",
             },
+            upsert=True,
+            on_conflict="name_normalised",
         )
-        return created[0]["id"] if created else None
+        if created:
+            return created[0]["id"]
+        # Another concurrent insert won the race; re-read rather than duplicate.
+        row = await self.db.select_one("companies", columns="id", eq={"name_normalised": key})
+        return row["id"] if row else None
 
     async def _mark_polled(self, sources: Sequence[Source] | None) -> None:
         if not sources:

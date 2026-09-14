@@ -116,9 +116,16 @@ $$;
 -- corporate suffix so the two keys meet.
 create or replace function strip_org_suffix(key text)
 returns text language sql immutable as $$
-  select regexp_replace(
-    coalesce(key, ''),
-    '(incorporated|limited|gmbh|bv|ltd|llc|inc|plc|sa|ag)$', '');
+  -- The length guard mirrors normalise_name() in api/app/agents/scout/base.py:
+  -- a company actually called "Ltd" keeps its name. The two must agree or the
+  -- unique index below and the Gatekeeper's lookups disagree about identity.
+  select case
+    when coalesce(key, '') ~ '(incorporated|limited|gmbh|bv|ltd|llc|inc|plc|sa|ag)$'
+     and length(key) > length((regexp_match(key,
+           '(incorporated|limited|gmbh|bv|ltd|llc|inc|plc|sa|ag)$'))[1]) + 2
+    then regexp_replace(key, '(incorporated|limited|gmbh|bv|ltd|llc|inc|plc|sa|ag)$', '')
+    else coalesce(key, '')
+  end;
 $$;
 
 create or replace function is_licensed_sponsor(country_code text, company_name text)
@@ -139,6 +146,22 @@ language sql stable as $$
       )
   );
 $$;
+
+-- ── One row per company, enforced ──────────────────────────────────────────
+-- Scout used to read the company table and compare names in Python, which both
+-- re-read the table per job and silently created duplicates once the table grew
+-- past the page size. A duplicate company splits `hires_internationally`, which
+-- is the one asset the system accumulates, so identity belongs in the database.
+-- nullif() rather than a partial index: PostgREST issues a bare
+-- `on conflict (name_normalised)`, which Postgres cannot infer against a
+-- partial index, so the upsert would fail at runtime. A null key is exempt
+-- from a unique index anyway, which gives nameless rows the same escape.
+alter table companies
+  add column if not exists name_normalised text
+  generated always as (nullif(strip_org_suffix(normalise_org(name)), '')) stored;
+
+create unique index if not exists companies_name_normalised_key
+  on companies (name_normalised);
 
 -- ── Review queue: the dashboard's single read (§7) ─────────────────────────
 create or replace view review_queue as

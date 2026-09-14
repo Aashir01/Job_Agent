@@ -212,3 +212,53 @@ async def test_the_same_company_is_not_created_twice(db, settings):
 
     await Scout(db, settings).run([Source()])
     assert len(db.tables["companies"]) == 1
+
+
+async def test_company_resolution_does_not_degrade_past_a_page_of_companies(db, settings):
+    """Regression: resolve_company read the first 200 companies and compared
+    names in Python, so past that it created duplicates — and a duplicate
+    company splits `hires_internationally`, the one asset that compounds.
+    It now looks up the indexed generated column."""
+    db.rpc_returns["match_jobs"] = []
+    db.tables["companies"] = [
+        {"id": f"c{i}", "name": f"Filler {i}", "name_normalised": f"filler{i}"}
+        for i in range(500)
+    ]
+    db.tables["companies"].append(
+        {"id": "target", "name": "Acme, Inc.", "name_normalised": "acme",
+         "hires_internationally": True}
+    )
+
+    class Source:
+        name = "s"
+
+        async def fetch(self, client):
+            return [RawJob("s", "https://e.com/new", "AI Engineer", "acme inc")]
+
+    await Scout(db, settings).run([Source()])
+
+    assert len(db.tables["companies"]) == 501, "a duplicate company row was created"
+    acme = [c for c in db.tables["companies"] if c.get("name_normalised") == "acme"]
+    assert len(acme) == 1
+    assert acme[0]["hires_internationally"] is True, "the compounding flag was split"
+    assert db.tables["jobs"][0]["company_id"] == "target"
+
+
+async def test_company_lookup_is_one_query_not_a_table_scan(db, settings):
+    db.rpc_returns["match_jobs"] = []
+    scout = Scout(db, settings)
+    reads: list[dict] = []
+    original = db.select
+
+    async def counting_select(table, **kw):
+        if table == "companies":
+            reads.append(kw)
+        return await original(table, **kw)
+
+    db.select = counting_select  # type: ignore[method-assign]
+    await scout.resolve_company(RawJob("s", "https://e.com/1", "Engineer", "Acme"))
+
+    assert len(reads) <= 1
+    assert reads and reads[0].get("eq", {}).get("name_normalised") == "acme", (
+        "the lookup must filter on the indexed column, not read the table"
+    )

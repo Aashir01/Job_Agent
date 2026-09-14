@@ -80,6 +80,8 @@ class Database:
         in_: dict[str, Sequence[Any]] | None = None,
         gte: dict[str, Any] | None = None,
         lte: dict[str, Any] | None = None,
+        not_null: Sequence[str] | None = None,
+        is_null: Sequence[str] | None = None,
         order: str | None = None,
         limit: int | None = None,
         offset: int | None = None,
@@ -94,6 +96,10 @@ class Database:
             params[col] = f"gte.{val}"
         for col, val in (lte or {}).items():
             params[col] = f"lte.{val}"
+        for col in not_null or ():
+            params[col] = "not.is.null"
+        for col in is_null or ():
+            params[col] = "is.null"
         if order:
             params["order"] = order
         if limit is not None:
