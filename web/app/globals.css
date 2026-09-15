@@ -2,23 +2,101 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  color-scheme: dark;
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html {
+    /* The whole surface is one dark plane; the only light source is a faint
+       accent bloom in the top corner, so the page has a direction. */
+    background-color: theme("colors.ink");
+  }
+
+  body {
+    @apply bg-ink text-fg antialiased;
+    font-synthesis-weight: none;
+    text-rendering: optimizeLegibility;
+    background-image:
+      radial-gradient(
+        900px 480px at 82% -8%,
+        rgba(122, 162, 255, 0.07),
+        transparent 70%
+      ),
+      radial-gradient(
+        700px 420px at 0% 0%,
+        rgba(63, 207, 142, 0.035),
+        transparent 65%
+      );
+    background-attachment: fixed;
+  }
+
+  ::selection {
+    @apply bg-accent/30 text-fg;
+  }
+
+  /* Review is keyboard work. The ring is part of the design, never removed. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-accent ring-offset-2 ring-offset-ink;
+    border-radius: 6px;
+  }
+
+  /* Scrollbars are chrome too: thin, low contrast, no arrows. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: theme("colors.edge-strong") transparent;
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply rounded-full border-4 border-solid border-transparent bg-edge-strong bg-clip-content;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-faint;
+  }
 }
 
-body {
-  @apply bg-ink text-slate-200 antialiased;
+@layer components {
+  /* Keycap. Legible at a glance, small enough to sit inline with a label. */
+  .kbd {
+    @apply inline-flex h-[1.35rem] min-w-[1.35rem] items-center justify-center rounded
+           border border-edge-strong bg-ink/60 px-[0.3rem] font-mono text-2xs
+           font-medium text-muted shadow-panel;
+  }
+
+  .kbd-on {
+    @apply border-accent/50 bg-accent/15 text-accent;
+  }
+
+  /* Diff marks in the resume view. Underline carries the meaning as well as
+     the fill, so it survives a colourblind filter. */
+  .diff-ins {
+    @apply rounded-[3px] bg-fast/15 text-fast;
+    box-shadow: inset 0 -1px 0 0 theme("colors.fast");
+  }
+  .diff-del {
+    @apply rounded-[3px] bg-marginal/10 text-marginal/80 line-through decoration-marginal/50;
+  }
+
+  /* The left rule is what marks "this is the one you're deciding on". */
+  .rail-rule::before {
+    content: "";
+    @apply absolute inset-y-1 left-0 w-[2px] rounded-full bg-accent;
+  }
 }
 
-/* Review is keyboard work. Keep the focus ring obvious and never remove it. */
-:focus-visible {
-  @apply outline-none ring-2 ring-sky-400 ring-offset-2 ring-offset-ink;
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
 }
-
-.kbd {
-  @apply inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded
-         border border-edge bg-panel px-1 font-mono text-[11px] text-muted;
-}
-
-.diff-ins { @apply rounded bg-emerald-500/20 text-emerald-200; }
-.diff-del { @apply rounded bg-rose-500/15 text-rose-300/70 line-through; }

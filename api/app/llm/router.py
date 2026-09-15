@@ -17,6 +17,7 @@ from ..db import Database, DatabaseError
 from .base import LLMError, LLMResponse, QuotaExhausted, Tier
 from .gemini import GeminiProvider
 from .groq import GroqProvider
+from .openrouter import OpenRouterProvider
 
 log = logging.getLogger(__name__)
 
@@ -38,6 +39,32 @@ def parse_json(text: str) -> dict[str, Any]:
     return parsed
 
 
+def _schema_hint(schema: dict[str, Any]) -> str:
+    """Restate the expected keys for providers that cannot enforce a schema.
+
+    Gemini enforces `responseSchema` server-side; OpenRouter does not accept
+    `response_format` at all behind some providers. Without this restatement the
+    model invents its own key set and silently drops fields the pipeline needs
+    (required_skills, seniority) — which reads as a thin posting, not a bug.
+    """
+    properties = schema.get("properties") or {}
+    keys = schema.get("required") or list(properties)
+    lines = []
+    for key in keys:
+        spec = properties.get(key, {})
+        if spec.get("enum"):
+            detail = f"{spec.get('type', 'string')}, one of {spec['enum']}"
+        elif spec.get("type") == "array":
+            detail = f"array of {(spec.get('items') or {}).get('type', 'string')}"
+        else:
+            detail = spec.get("type", "string")
+        lines.append(f'  "{key}": {detail}')
+    return (
+        "Reply with a single JSON object only — no prose, no code fences — "
+        "containing exactly these keys:\n" + "\n".join(lines)
+    )
+
+
 class LLMRouter:
     def __init__(
         self,
@@ -55,6 +82,13 @@ class LLMRouter:
 
         s = self.settings
         self.providers = [
+            OpenRouterProvider(
+                s.openrouter_api_key,
+                s.openrouter_cheap_model,
+                s.openrouter_good_model,
+                fallbacks=s.openrouter_fallbacks,
+                disable_reasoning=s.openrouter_disable_reasoning,
+            ),
             GeminiProvider(s.gemini_api_key, s.gemini_cheap_model, s.gemini_good_model),
             GroqProvider(s.groq_api_key, s.groq_cheap_model, s.groq_good_model),
         ]
@@ -152,6 +186,10 @@ class LLMRouter:
 
     async def generate_json(self, prompt: str, **kw: Any) -> dict[str, Any]:
         """Strict-JSON call. One repair attempt before giving up."""
+        schema = kw.get("schema")
+        if schema:
+            prompt = f"{prompt}\n\n{_schema_hint(schema)}"
+
         resp = await self.generate(prompt, **kw)
         try:
             return parse_json(resp.text)

@@ -11,10 +11,11 @@
  */
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 
-const SRC = new URL("../src/", import.meta.url).pathname;
+const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
 const files = readdirSync(SRC).filter((f) => f.endsWith(".js"));
 
 /** Strip comments and string literals so prose and selectors can't trip a rule. */

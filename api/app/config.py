@@ -27,6 +27,18 @@ class Settings(BaseSettings):
     groq_cheap_model: str = "llama-3.1-8b-instant"
     groq_good_model: str = "llama-3.3-70b-versatile"
 
+    # OpenRouter reaches many models behind one key. When set it is tried first;
+    # the fallbacks are used for both tiers when a free model is rate-limited.
+    # Ordered by what actually returns parseable JSON: the reasoning models were
+    # slower and, with reasoning on, spent the whole budget thinking.
+    openrouter_api_key: str = ""
+    openrouter_cheap_model: str = "inclusionai/ling-3.0-flash-fin:free"
+    openrouter_good_model: str = "nvidia/nemotron-3.5-lightning:free"
+    openrouter_fallback_models: str = (
+        "poolside/laguna-s-2.1:free,nvidia/nemotron-3-ultra-550b-a55b:free"
+    )
+    openrouter_disable_reasoning: bool = True
+
     # ── Embeddings ────────────────────────────────────────────────────────
     # 'hashing' is deterministic, dependency-free and fits a 256MB machine.
     # 'gemini' uses text-embedding-004 with output_dimensionality=384.
@@ -85,6 +97,10 @@ class Settings(BaseSettings):
     track_weights_map: dict = Field(default_factory=dict, exclude=True)
 
     @property
+    def openrouter_fallbacks(self) -> list[str]:
+        return [m.strip() for m in self.openrouter_fallback_models.split(",") if m.strip()]
+
+    @property
     def track_weights(self) -> dict[str, float]:
         return {
             "remote_fte": self.weight_remote_fte,
@@ -95,6 +111,10 @@ class Settings(BaseSettings):
     @property
     def configured(self) -> bool:
         return bool(self.supabase_url and self.supabase_service_key)
+
+    @property
+    def llm_configured(self) -> bool:
+        return bool(self.openrouter_api_key or self.gemini_api_key or self.groq_api_key)
 
 
 @lru_cache(maxsize=1)

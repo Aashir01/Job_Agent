@@ -156,10 +156,11 @@ export function ReviewQueue({ initial }: { initial: ReviewPackage[] }) {
 
   if (!queue.length) {
     return (
-      <div className="rounded-xl border border-edge bg-panel/50 p-10 text-center">
-        <p className="text-sm">The queue is empty.</p>
-        <p className="mt-1 text-xs text-muted">
-          The next batch runs at 02:00 and 14:00 UTC.
+      <div className="animate-fade-in rounded-2xl border border-dashed border-edge bg-panel/40 px-6 py-16 text-center">
+        <p className="text-base font-medium text-fg">The queue is clear.</p>
+        <p className="mx-auto mt-1.5 max-w-sm text-sm text-muted">
+          Nothing is waiting on you. The next batch runs at 02:00 and 14:00 UTC and will
+          refill this queue.
         </p>
       </div>
     );
@@ -167,61 +168,104 @@ export function ReviewQueue({ initial }: { initial: ReviewPackage[] }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3">
-        {TIER_ORDER.map((tier) =>
-          counts[tier] ? (
-            <span key={tier} className="flex items-center gap-1.5 text-xs text-muted">
-              <span className={`h-1.5 w-1.5 rounded-full ${TIER_META[tier].dot}`} aria-hidden />
-              {TIER_META[tier].label}: <b className="text-slate-200">{counts[tier]}</b>
-            </span>
-          ) : null,
+      <div className="relative overflow-hidden rounded-xl border border-edge bg-panel/60 shadow-panel">
+        {pending && (
+          <span
+            aria-hidden
+            className="absolute inset-x-0 top-0 h-px animate-pulse-dot bg-accent"
+          />
         )}
-        <span className="text-xs text-muted">·</span>
-        <span className="text-xs text-muted">
-          {cursor + 1} of {queue.length}
-        </span>
-        {counts.fast_lane ? (
-          <button
-            type="button"
-            onClick={approveFastLane}
-            disabled={pending}
-            className="ml-auto rounded-lg border border-fast/40 bg-fast/10 px-3 py-1.5 text-xs
-                       font-medium text-fast hover:bg-fast/20 disabled:opacity-50"
-          >
-            Approve all {counts.fast_lane} fast-lane
-          </button>
-        ) : null}
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 px-4 py-2.5">
+          {TIER_ORDER.map((tier) =>
+            counts[tier] ? (
+              <span key={tier} className="flex items-center gap-2">
+                <span className={`h-1.5 w-1.5 rounded-full ${TIER_META[tier].dot}`} aria-hidden />
+                <span className="text-xs text-muted">{TIER_META[tier].label}</span>
+                <span className="font-mono text-sm font-semibold tabular-nums text-fg">
+                  {counts[tier]}
+                </span>
+              </span>
+            ) : null,
+          )}
+
+          <span aria-hidden className="hidden h-4 w-px bg-edge sm:block" />
+
+          <span className="font-mono text-xs tabular-nums text-faint">
+            {cursor + 1}
+            <span className="text-edge-strong"> / </span>
+            {queue.length}
+          </span>
+
+          {counts.fast_lane ? (
+            <button
+              type="button"
+              onClick={approveFastLane}
+              disabled={pending}
+              className="ml-auto rounded-lg border border-fast/40 bg-fast/15 px-3 py-1.5 text-xs
+                         font-medium text-fast transition-colors duration-150 hover:bg-fast/25
+                         disabled:opacity-50"
+            >
+              Approve all {counts.fast_lane} fast-lane
+            </button>
+          ) : null}
+        </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)]">
-        <ul ref={listRef} className="max-h-[70vh] space-y-1.5 overflow-y-auto pr-1">
-          {queue.map((pkg, index) => (
-            <li key={pkg.id}>
-              <button
-                type="button"
-                onClick={() => setCursor(index)}
-                aria-current={index === cursor}
-                className={`w-full rounded-lg border px-3 py-2 text-left transition ${
-                  index === cursor
-                    ? "border-sky-400/60 bg-sky-400/10"
-                    : "border-edge bg-panel/40 hover:border-edge/80"
-                }`}
-              >
-                <div className="flex items-baseline gap-2">
-                  <ScorePill score={pkg.fit_score} />
-                  <span className="truncate text-sm">{pkg.title ?? "Untitled role"}</span>
-                </div>
-                <div className="mt-0.5 flex items-center gap-2 truncate text-[11px] text-muted">
-                  <span className="truncate">{pkg.company_name ?? "Unknown company"}</span>
-                  <span>·</span>
-                  <span className="truncate">{pkg.location_raw ?? "—"}</span>
-                </div>
-              </button>
-            </li>
-          ))}
-        </ul>
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,21rem)_minmax(0,1fr)]">
+        <div className="lg:sticky lg:top-20 lg:self-start">
+          <p className="mb-2 px-1 text-2xs uppercase tracking-[0.14em] text-faint">Queue</p>
+          <ul
+            ref={listRef}
+            className="max-h-[calc(100vh-11rem)] space-y-1 overflow-y-auto pr-1"
+          >
+            {queue.map((pkg, index) => {
+              const selected = index === cursor;
+              return (
+                <li key={pkg.id}>
+                  <button
+                    type="button"
+                    onClick={() => setCursor(index)}
+                    aria-current={selected}
+                    className={`relative block w-full rounded-lg border px-3 py-2.5 text-left
+                                transition-colors duration-150 ${
+                                  selected
+                                    ? "rail-rule border-edge-strong bg-raised shadow-raised"
+                                    : "border-transparent bg-panel/40 hover:border-edge hover:bg-panel"
+                                }`}
+                  >
+                    <div className="flex items-baseline gap-2.5">
+                      <ScorePill score={pkg.fit_score} />
+                      <span
+                        className={`truncate text-sm ${selected ? "text-fg" : "text-fg/80"}`}
+                      >
+                        {pkg.title ?? "Untitled role"}
+                      </span>
+                    </div>
+                    <div className="mt-1 flex items-center gap-2 pl-[2.1rem]">
+                      <span className="truncate text-2xs text-muted">
+                        {pkg.company_name ?? "Unknown company"}
+                      </span>
+                      <span aria-hidden className="text-2xs text-edge-strong">
+                        ·
+                      </span>
+                      <span className="truncate text-2xs text-faint">
+                        {pkg.location_raw ?? "—"}
+                      </span>
+                    </div>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
 
         <div className="min-w-0">
+          {current && (
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <TierBadge tier={current.tier} />
+              <p className="text-2xs text-faint">{TIER_META[current.tier ?? "marginal"].blurb}</p>
+            </div>
+          )}
           {current && (
             <PackageDetail
               pkg={current}
@@ -237,26 +281,41 @@ export function ReviewQueue({ initial }: { initial: ReviewPackage[] }) {
       </div>
 
       <footer
-        className="sticky bottom-0 flex flex-wrap items-center gap-x-4 gap-y-1 border-t
-                   border-edge bg-ink/95 py-2 text-[11px] text-muted backdrop-blur"
+        className="sticky bottom-0 z-10 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl border
+                   border-edge bg-ink/85 px-4 py-2.5 text-2xs text-faint backdrop-blur-xl"
       >
-        <span><span className="kbd">J</span> <span className="kbd">K</span> move</span>
-        <span><span className="kbd">A</span> approve</span>
-        <span><span className="kbd">X</span> reject</span>
-        <span><span className="kbd">E</span> edit</span>
-        <span>
-          <span className="kbd">1</span>–<span className="kbd">5</span> reject reason
+        <span className="flex items-center gap-1.5">
+          <span className="kbd">J</span>
+          <span className="kbd">K</span>
+          <span className="ml-0.5">move</span>
         </span>
+        <span className="flex items-center gap-1.5">
+          <span className="kbd">A</span>
+          <span>approve</span>
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="kbd">X</span>
+          <span>reject</span>
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="kbd">E</span>
+          <span>edit</span>
+        </span>
+
         {awaitingReason && (
           <span className="font-medium text-marginal">
             Reject as: {REJECT_REASONS.map((r, i) => `${i + 1} ${r.label}`).join("  ·  ")}
           </span>
         )}
+
         {toast && (
           <span
             role="status"
-            className={`ml-auto ${toast.ok ? "text-fast" : "text-marginal"}`}
+            className={`ml-auto flex items-center gap-1.5 ${
+              toast.ok ? "text-fast" : "text-marginal"
+            }`}
           >
+            <span aria-hidden>{toast.ok ? "✓" : "!"}</span>
             {toast.message}
           </span>
         )}

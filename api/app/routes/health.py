@@ -19,7 +19,7 @@ async def health() -> dict:
         "ok": True,
         "environment": settings.environment,
         "database_configured": settings.configured,
-        "llm_configured": bool(settings.gemini_api_key or settings.groq_api_key),
+        "llm_configured": settings.llm_configured,
         "embedding_provider": settings.embedding_provider,
         "time": datetime.now(timezone.utc).isoformat(),
     }

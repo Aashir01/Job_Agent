@@ -6,11 +6,14 @@ action begins, and it is behind a click.
 """
 from __future__ import annotations
 
+import io
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from ..agents.courier import Courier, NotApproved
@@ -73,6 +76,46 @@ async def get_package(package_id: str, db: Database = Depends(get_db)) -> dict:
         eq={"id": package_id},
     )
     return {**row, **(extras or {})}
+
+
+@router.get("/{package_id}/resume")
+async def download_resume(package_id: str, db: Database = Depends(get_db)) -> StreamingResponse:
+    """Stream the tailored .docx through the API.
+
+    The `packages` storage bucket is private, so the browser cannot fetch the
+    object directly. Everything that touches the service key stays server-side;
+    the dashboard proxies this and never sees the key.
+    """
+    package = await db.select_one("packages", columns="resume_url", eq={"id": package_id})
+    if not package or not package.get("resume_url"):
+        raise HTTPException(404, "no resume was built for this package")
+
+    row = await db.select_one("review_queue", columns="title,company_name", eq={"id": package_id})
+    stem = " ".join(part for part in ((row or {}).get("company_name"), (row or {}).get("title")) if part)
+    stem = re.sub(r"[^A-Za-z0-9]+", "-", stem).strip("-") or "resume"
+
+    settings = get_settings()
+    url = (
+        f"{settings.supabase_url.rstrip('/')}/storage/v1/object/packages/"
+        f"{package['resume_url']}"
+    )
+    key = settings.supabase_service_key
+    resp = await db.client.get(
+        url, headers={"apikey": key, "Authorization": f"Bearer {key}"}
+    )
+    if resp.status_code >= 400:
+        raise HTTPException(502, f"resume storage returned {resp.status_code}")
+
+    return StreamingResponse(
+        io.BytesIO(resp.content),
+        media_type=(
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        ),
+        headers={
+            "Content-Disposition": f'attachment; filename="{stem}.docx"',
+            "Content-Length": str(len(resp.content)),
+        },
+    )
 
 
 @router.patch("/{package_id}")

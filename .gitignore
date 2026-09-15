@@ -20,6 +20,11 @@ out/
 .env.*.local
 *.pem
 
+# Personal seeds. The .example files are the committed templates; these carry
+# your real contact details, employers and resume wording.
+db/seeds/profile.json
+db/seeds/bullets.json
+
 # Build output
 extension/dist/
 extension/*.zip

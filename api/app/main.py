@@ -34,7 +34,7 @@ async def lifespan(app: FastAPI):
         "job-agent starting: env=%s db=%s llm=%s embeddings=%s",
         settings.environment,
         "configured" if settings.configured else "MISSING",
-        "configured" if (settings.gemini_api_key or settings.groq_api_key) else "MISSING",
+        "configured" if settings.llm_configured else "MISSING",
         settings.embedding_provider,
     )
     yield
