@@ -4,10 +4,16 @@ import type {
   ApplicationRow,
   BatchDetail,
   BatchRow,
+  BoardInfo,
   DueOutreach,
   ExtensionQueueRow,
+  Profile,
+  ProfilePatch,
   QueueResponse,
   ReviewPackage,
+  RunFilters,
+  RunSettings,
+  SourcesResponse,
   StatsOverview,
   Tier,
 } from "./types";
@@ -173,4 +179,62 @@ export function approveOutreach(id: string, opts: { body?: string; sendNow?: boo
 
 export function getExtensionQueue(): Promise<{ items: ExtensionQueueRow[] }> {
   return call(`/extension/queue?limit=100`);
+}
+
+/* ── Setup: profile, platforms and run settings ────────────────────────── */
+
+export function getProfile(): Promise<{ profile: Profile }> {
+  return call(`/profile`);
+}
+
+export function updateProfile(patch: ProfilePatch): Promise<{ profile: Profile }> {
+  return call(`/profile`, { method: "PATCH", body: JSON.stringify(patch) });
+}
+
+export function getSources(): Promise<SourcesResponse> {
+  return call(`/sources`);
+}
+
+export function setBoardEnabled(id: string, enabled: boolean): Promise<{ board: BoardInfo }> {
+  return call(`/sources/boards/${id}`, { method: "PATCH", body: JSON.stringify({ enabled }) });
+}
+
+export function addBoard(input: {
+  kind: string;
+  slug: string;
+  company_name?: string;
+}): Promise<{ board: BoardInfo }> {
+  return call(`/sources/boards`, { method: "POST", body: JSON.stringify(input) });
+}
+
+export function deleteBoard(id: string): Promise<{ removed: number }> {
+  return call(`/sources/boards/${id}`, { method: "DELETE" });
+}
+
+export function getRunSettings(): Promise<RunSettings> {
+  return call(`/run-settings`);
+}
+
+export function updateRunSettings(input: {
+  platforms?: string[];
+  filters?: RunFilters;
+}): Promise<{ platforms: string[]; filters: RunFilters }> {
+  return call(`/run-settings`, { method: "PATCH", body: JSON.stringify(input) });
+}
+
+/** Saves the console's choices and starts the batch. The cron reads the same row. */
+export function runConfiguredBatch(input: {
+  platforms?: string[];
+  filters?: RunFilters;
+  skipScout?: boolean;
+}): Promise<{ started: boolean; completed: boolean; kind: string }> {
+  const params = new URLSearchParams({
+    kind: "manual",
+    wait: "false",
+    skip_scout: String(Boolean(input.skipScout)),
+  });
+  return call(`/batch/run?${params}`, {
+    method: "POST",
+    body: JSON.stringify({ platforms: input.platforms, filters: input.filters }),
+  });
 }

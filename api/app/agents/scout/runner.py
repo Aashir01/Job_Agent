@@ -23,15 +23,8 @@ from ...db import Database
 from ...embeddings import Embedder
 from .ats import build_ats_source
 from .base import RawJob, Source, normalise_name
-from .boards import (
-    Adzuna,
-    Arbeitnow,
-    HackerNewsHiring,
-    Himalayas,
-    RemoteOK,
-    Remotive,
-    WeWorkRemotely,
-)
+from .filters import apply_filters
+from .registry import build_aggregator, select
 
 log = logging.getLogger(__name__)
 
@@ -49,6 +42,10 @@ class ScoutResult:
     duplicates_hash: int = 0
     duplicates_embedding: int = 0
     stale: int = 0
+    # Where the postings came from, and what the run's filters dropped. Without
+    # these a thin batch is unexplainable from the dashboard.
+    by_source: dict[str, int] = field(default_factory=dict)
+    filtered: dict[str, int] = field(default_factory=dict)
     inserted_job_ids: list[str] = field(default_factory=list)
     source_errors: dict[str, str] = field(default_factory=dict)
 
@@ -60,9 +57,42 @@ class ScoutResult:
             "duplicates_hash": self.duplicates_hash,
             "duplicates_embedding": self.duplicates_embedding,
             "stale": self.stale,
+            "filtered": self.filtered,
+            "by_source": self.by_source,
             "inserted": len(self.inserted_job_ids),
             "source_errors": self.source_errors,
         }
+
+
+def _balanced_take(jobs: Sequence[RawJob], limit: int) -> list[RawJob]:
+    """Cap the batch round-robin across sources instead of by arrival order.
+
+    Sources are polled and concatenated in code order, so a plain ``[:limit]``
+    lets whichever platform happens to be polled first consume the whole
+    allowance — which is how every stored job came to be from a single ATS.
+    Taking one posting per source per pass keeps every platform in the running.
+    """
+    if limit <= 0 or len(jobs) <= limit:
+        return list(jobs)
+
+    buckets: dict[str, list[RawJob]] = {}
+    for job in jobs:
+        buckets.setdefault(job.source, []).append(job)
+
+    taken: list[RawJob] = []
+    position = 0
+    while len(taken) < limit:
+        progressed = False
+        for bucket in buckets.values():
+            if position < len(bucket):
+                taken.append(bucket[position])
+                progressed = True
+                if len(taken) >= limit:
+                    break
+        if not progressed:
+            break
+        position += 1
+    return taken
 
 
 class Scout:
@@ -77,8 +107,17 @@ class Scout:
         self.embedder = embedder or Embedder(self.settings)
 
     # ── source assembly ───────────────────────────────────────────────────
-    async def build_sources(self) -> list[Source]:
-        """Seeded company boards first (§6 build order), then the open boards."""
+    async def build_sources(
+        self, platforms: Sequence[str] | None = None, keywords: Sequence[str] | None = None
+    ) -> list[Source]:
+        """Seeded company boards first (§6 build order), then the open boards.
+
+        ``platforms`` narrows the poll to a selection made in the run console; an
+        empty selection means every platform, so an install that never opens the
+        Setup page polls exactly what it used to.
+        """
+        ats_kinds, aggregator_ids = select(list(platforms) if platforms else None)
+
         sources: list[Source] = []
         try:
             seeds = await self.db.select(
@@ -89,6 +128,8 @@ class Scout:
             seeds = []
 
         for seed in seeds:
+            if seed.get("kind") not in ats_kinds:
+                continue
             try:
                 sources.append(
                     build_ats_source(seed["kind"], seed["slug"], seed.get("company_name"))
@@ -96,20 +137,22 @@ class Scout:
             except ValueError as exc:
                 log.warning("skipping seed %s/%s: %s", seed.get("kind"), seed.get("slug"), exc)
 
-        sources += [
-            Remotive(),
-            RemoteOK(),
-            Arbeitnow(),
-            Himalayas(),
-            WeWorkRemotely(),
-            HackerNewsHiring(),
-            Adzuna(self.settings.adzuna_app_id, self.settings.adzuna_app_key),
-        ]
+        for platform_id in aggregator_ids:
+            source = build_aggregator(platform_id, self.settings, list(keywords or []))
+            if source is not None:
+                sources.append(source)
         return sources
 
     # ── polling ───────────────────────────────────────────────────────────
-    async def poll(self, sources: Sequence[Source] | None = None) -> tuple[list[RawJob], dict[str, str]]:
-        sources = list(sources) if sources is not None else await self.build_sources()
+    async def poll(
+        self,
+        sources: Sequence[Source] | None = None,
+        platforms: Sequence[str] | None = None,
+        keywords: Sequence[str] | None = None,
+    ) -> tuple[list[RawJob], dict[str, str]]:
+        if sources is None:
+            sources = await self.build_sources(platforms, keywords)
+        sources = list(sources)
         semaphore = asyncio.Semaphore(self.settings.scout_concurrency)
         errors: dict[str, str] = {}
 
@@ -137,9 +180,20 @@ class Scout:
         return [job for batch in batches for job in batch], errors
 
     # ── dedupe + persist ──────────────────────────────────────────────────
-    async def run(self, sources: Sequence[Source] | None = None) -> ScoutResult:
-        raw, errors = await self.poll(sources)
+    async def run(
+        self,
+        sources: Sequence[Source] | None = None,
+        platforms: Sequence[str] | None = None,
+        filters: dict | None = None,
+        limit: int | None = None,
+    ) -> ScoutResult:
+        keywords = [str(k) for k in ((filters or {}).get("keywords") or []) if str(k).strip()]
+        raw, errors = await self.poll(sources, platforms, keywords)
         result = ScoutResult(fetched=len(raw), source_errors=errors)
+
+        # Free to drop, expensive to carry: a filtered posting never reaches the
+        # Analyst, so this runs before anything is stored or scored.
+        raw, result.filtered = apply_filters(raw, filters)
 
         seen_urls: set[str] = set()
         seen_hashes: set[str] = set()
@@ -159,7 +213,9 @@ class Scout:
             seen_hashes.add(job.dedupe_hash)
             candidates.append(job)
 
-        candidates = candidates[: self.settings.scout_max_jobs_per_batch]
+        candidates = _balanced_take(
+            candidates, limit or self.settings.scout_max_jobs_per_batch
+        )
         if not candidates:
             return result
 
@@ -204,13 +260,14 @@ class Scout:
             if inserted:
                 result.inserted_job_ids.append(inserted[0]["id"])
                 result.kept += 1
+                result.by_source[job.source] = result.by_source.get(job.source, 0) + 1
                 # Keep the in-run guard current so a later near-duplicate in the
                 # same batch is compared against this row too.
                 known_hashes.add(job.dedupe_hash)
             else:
                 result.duplicates_url += 1
 
-        await self._mark_polled(sources)
+        await self._mark_polled(sources, errors, result.by_source)
         return result
 
     async def _known(self, table: str, column: str, values: list[str]) -> set[str]:
@@ -282,20 +339,42 @@ class Scout:
         row = await self.db.select_one("companies", columns="id", eq={"name_normalised": key})
         return row["id"] if row else None
 
-    async def _mark_polled(self, sources: Sequence[Source] | None) -> None:
+    async def _mark_polled(
+        self,
+        sources: Sequence[Source] | None,
+        errors: dict[str, str] | None = None,
+        by_source: dict[str, int] | None = None,
+    ) -> None:
         if not sources:
             return
         now = datetime.now(timezone.utc).isoformat()
+        errors = errors or {}
+        by_source = by_source or {}
         for source in sources:
             slug = getattr(source, "slug", None)
             if not slug:
                 continue
+            label = f"{source.name}:{slug}"
             try:
                 await self.db.update(
                     "source_seeds",
-                    {"last_polled_at": now},
+                    {
+                        "last_polled_at": now,
+                        "last_error": errors.get(label),
+                        "jobs_found": by_source.get(label, 0),
+                    },
                     eq={"kind": source.name, "slug": slug},
                     returning=False,
                 )
             except Exception:
-                pass
+                # Before 0005 the table has no jobs_found column; a board's health
+                # should not cost us the record that we polled it at all.
+                try:
+                    await self.db.update(
+                        "source_seeds",
+                        {"last_polled_at": now},
+                        eq={"kind": source.name, "slug": slug},
+                        returning=False,
+                    )
+                except Exception:
+                    pass

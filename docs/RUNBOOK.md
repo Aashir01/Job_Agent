@@ -75,6 +75,25 @@ Check the last batch: `GET /batch` shows `killed_by_gatekeeper` and
 seed boards have rotted — run `python db/seeds/verify_boards.py`. A high score
 kill usually means the bullet bank is too small to match anything.
 
+**Only one platform is contributing.**
+Read *Jobs by platform* on the batch detail page. Sources are polled in code
+order and the seeds sort `kind.asc`, so a cap applied by arrival order lets
+whichever platform sorts first spend the whole allowance on its own — every
+stored job can come from one ATS while Greenhouse and the aggregators, all
+healthy, are never reached. `_balanced_take` in the Scout interleaves by source
+so every platform gets a turn before any gets a second one.
+
+If that is already in place and the queue is still thin, the cap itself is the
+problem: a single large board (Databricks alone returns ~876 postings) can
+exceed `SCOUT_MAX_JOBS_PER_BATCH` on its own. Raise **max jobs** from the Setup
+page rather than editing `.env` — the per-run value overrides the setting and is
+recorded on the batch, so the next run is explicable.
+
+**Every source shows zero.**
+The platform picker saved a selection and the board you want is not in it. An
+empty selection means *all platforms*; a non-empty one means exactly those
+listed on the batch detail page under "asked for".
+
 **Everything is scoring low.**
 The score is 42% skills coverage, and coverage is measured against
 `bullet_bank`. A bank of six bullets cannot cover a real job description. Add

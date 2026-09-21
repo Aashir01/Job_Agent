@@ -29,6 +29,7 @@ from .db import Database
 from .embeddings import Embedder
 from .llm.base import QuotaExhausted
 from .llm.router import LLMRouter
+from .run_settings import caps, load as load_run_settings
 
 log = logging.getLogger(__name__)
 
@@ -36,6 +37,12 @@ log = logging.getLogger(__name__)
 @dataclass
 class BatchStats:
     batch_id: str = ""
+    # What this run was asked to do, recorded so a thin batch is explicable
+    # without guessing which platforms and filters were in force.
+    platforms: list[str] = field(default_factory=list)
+    filters: dict[str, Any] = field(default_factory=dict)
+    max_jobs: int = 0
+    llm_budget: int = 0
     scout: dict[str, Any] = field(default_factory=dict)
     analysed: int = 0
     killed_by_gatekeeper: int = 0
@@ -51,6 +58,10 @@ class BatchStats:
 
     def as_dict(self) -> dict[str, Any]:
         return {
+            "platforms": self.platforms,
+            "filters": self.filters,
+            "max_jobs": self.max_jobs,
+            "llm_budget": self.llm_budget,
             "scout": self.scout,
             "analysed": self.analysed,
             "killed_by_gatekeeper": self.killed_by_gatekeeper,
@@ -81,15 +92,36 @@ class BatchRunner:
         self.connector = Connector(db, self.llm, self.settings)
 
     async def run(self, kind: str = "scheduled", skip_scout: bool = False) -> BatchStats:
-        self.llm.reset_budget()
+        # One row read decides the whole run: platforms, filters and both caps.
+        config = await load_run_settings(self.db)
+        platforms = config["platforms"]
+        filters = config["filters"]
+        max_jobs, llm_calls = caps(config, self.settings)
+
+        self.llm.reset_budget(llm_calls)
         rows = await self.db.insert("batches", {"kind": kind, "status": "running"})
         batch_id = rows[0]["id"] if rows else ""
-        stats = BatchStats(batch_id=batch_id)
-        log.info("batch %s started (%s)", batch_id, kind)
+        stats = BatchStats(
+            batch_id=batch_id,
+            platforms=platforms,
+            filters=filters,
+            max_jobs=max_jobs,
+            llm_budget=llm_calls,
+        )
+        log.info(
+            "batch %s started (%s): platforms=%s max_jobs=%d llm_budget=%d",
+            batch_id,
+            kind,
+            platforms or "all",
+            max_jobs,
+            llm_calls,
+        )
 
         try:
             if not skip_scout:
-                scout_result = await self.scout.run()
+                scout_result = await self.scout.run(
+                    platforms=platforms, filters=filters, limit=max_jobs
+                )
                 stats.scout = scout_result.as_dict()
                 log.info("scout: %s", stats.scout)
 
@@ -100,7 +132,7 @@ class BatchRunner:
             bias = DecisionBias(self.db)
             await bias.load()
 
-            jobs = await self._jobs_to_process()
+            jobs = await self._jobs_to_process(max_jobs)
             log.info("batch %s: %d jobs to process", batch_id, len(jobs))
 
             for job in jobs:
@@ -146,7 +178,7 @@ class BatchRunner:
         log.info("batch %s finished: %s", batch_id, stats.as_dict())
         return stats
 
-    async def _jobs_to_process(self) -> list[dict[str, Any]]:
+    async def _jobs_to_process(self, limit: int) -> list[dict[str, Any]]:
         """Unanalysed jobs, newest first. A job the Gatekeeper already killed
         carries ``killed_reason`` and is never reconsidered for free."""
         jobs = await self.db.select(
@@ -155,7 +187,7 @@ class BatchRunner:
             "nl_recognised_sponsor,hires_internationally,email_pattern)",
             eq={"analysis": None},
             order="discovered_at.desc",
-            limit=self.settings.scout_max_jobs_per_batch,
+            limit=limit,
         )
         return jobs
 

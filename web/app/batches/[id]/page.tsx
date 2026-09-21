@@ -5,8 +5,24 @@ import { AutoRefresh } from "@/components/AutoRefresh";
 import { StatusBadge } from "@/components/BatchStatus";
 import { getBatch } from "@/lib/api";
 import { dateTime, elapsed, usd } from "@/lib/format";
+import type { RunFilters } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
+
+/** One line describing the filters this run was given, for the header readout. */
+function describeFilters(filters: RunFilters | undefined): string {
+  if (!filters) return "";
+  const parts: string[] = [];
+  if (filters.keywords?.length) parts.push(`keywords ${filters.keywords.join(", ")}`);
+  if (filters.locations?.length) parts.push(`locations ${filters.locations.join(", ")}`);
+  if (filters.exclude_keywords?.length) {
+    parts.push(`excluding ${filters.exclude_keywords.join(", ")}`);
+  }
+  if (filters.remote_only) parts.push("remote only");
+  if (filters.seniority?.length) parts.push(`seniority ${filters.seniority.join(", ")}`);
+  if (filters.salary_floor_usd) parts.push(`floor $${filters.salary_floor_usd}`);
+  return parts.length ? ` · ${parts.join(" · ")}` : "";
+}
 
 export default async function BatchDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -21,6 +37,8 @@ export default async function BatchDetailPage({ params }: { params: Promise<{ id
   const stats = batch.stats ?? {};
   const agents = Object.entries(llm_by_agent);
   const scout = (stats.scout ?? {}) as Record<string, unknown>;
+  const bySource = Object.entries(stats.scout?.by_source ?? {}).sort(([, a], [, b]) => b - a);
+  const filtered = Object.entries(stats.scout?.filtered ?? {});
 
   return (
     <div className="space-y-5">
@@ -76,6 +94,39 @@ export default async function BatchDetailPage({ params }: { params: Promise<{ id
               · {stats.rejected_rewrites} rewrites rejected by the traceability check
             </span>
           )}
+        </p>
+      )}
+
+      {/* What this run was asked for, and what each platform gave back. A thin
+          queue is nearly always one of these two, so both are on the page. */}
+      <p className="text-xs text-muted">
+        <span className="text-faint">asked for</span>{" "}
+        {stats.platforms?.length ? stats.platforms.join(", ") : "all platforms"}
+        {stats.max_jobs ? ` · max ${stats.max_jobs} jobs` : ""}
+        {stats.llm_budget ? ` · ${stats.llm_budget} LLM calls` : ""}
+        {describeFilters(stats.filters)}
+      </p>
+
+      {bySource.length > 0 && (
+        <section aria-label="Jobs by platform">
+          <h2 className="mb-2 px-1 text-2xs uppercase tracking-[0.14em] text-faint">
+            Jobs by platform
+          </h2>
+          <div className="flex flex-wrap gap-x-5 gap-y-1.5 rounded-xl border border-edge bg-panel/60 px-4 py-3 shadow-panel">
+            {bySource.map(([source, count]) => (
+              <span key={source} className="text-xs text-muted">
+                <span className="text-fg/80">{source}</span>{" "}
+                <span className="font-mono tabular-nums">{count}</span>
+              </span>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {filtered.length > 0 && (
+        <p className="text-xs text-muted">
+          <span className="text-faint">dropped by filters</span>{" "}
+          {filtered.map(([reason, count]) => `${reason.replace(/_/g, " ")} ${count}`).join(" · ")}
         </p>
       )}
 

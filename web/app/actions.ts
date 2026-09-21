@@ -4,15 +4,23 @@ import { revalidatePath } from "next/cache";
 
 import {
   ApiError,
+  addBoard,
   approveFastLane,
   approveOutreach,
   approvePackage,
+  deleteBoard,
   editPackage,
   refreshRegisters,
   rejectPackage,
   runBatch,
   runChaser,
+  runConfiguredBatch,
+  setBoardEnabled,
+  updateProfile,
+  updateRunSettings,
 } from "@/lib/api";
+
+import type { ProfilePatch, RunFilters } from "@/lib/types";
 
 export interface ActionResult {
   ok: boolean;
@@ -125,6 +133,90 @@ export async function refreshRegistersAction(): Promise<ActionResult> {
   try {
     await refreshRegisters();
     return { ok: true, message: "Sponsorship registers refreshed" };
+  } catch (error) {
+    return { ok: false, message: describe(error) };
+  }
+}
+
+/* ── Setup: the profile, the platforms, and the run ─────────────────────── */
+
+export async function saveProfileAction(patch: ProfilePatch): Promise<ActionResult> {
+  try {
+    await updateProfile(patch);
+    revalidatePath("/setup");
+    return { ok: true, message: "Profile saved — the next batch will use it" };
+  } catch (error) {
+    return { ok: false, message: describe(error) };
+  }
+}
+
+export async function toggleBoardAction(id: string, enabled: boolean): Promise<ActionResult> {
+  try {
+    await setBoardEnabled(id, enabled);
+    revalidatePath("/setup");
+    return { ok: true, message: enabled ? "Board enabled" : "Board disabled" };
+  } catch (error) {
+    return { ok: false, message: describe(error) };
+  }
+}
+
+export async function addBoardAction(input: {
+  kind: string;
+  slug: string;
+  company_name?: string;
+}): Promise<ActionResult> {
+  try {
+    const { board } = await addBoard(input);
+    revalidatePath("/setup");
+    return { ok: true, message: `Added ${board.kind}/${board.slug}` };
+  } catch (error) {
+    return { ok: false, message: describe(error) };
+  }
+}
+
+export async function deleteBoardAction(id: string, label: string): Promise<ActionResult> {
+  try {
+    await deleteBoard(id);
+    revalidatePath("/setup");
+    return { ok: true, message: `Removed ${label}` };
+  } catch (error) {
+    return { ok: false, message: describe(error) };
+  }
+}
+
+export async function saveRunSettingsAction(input: {
+  platforms: string[];
+  filters: RunFilters;
+}): Promise<ActionResult> {
+  try {
+    await updateRunSettings(input);
+    revalidatePath("/setup");
+    return { ok: true, message: "Saved. The scheduled batches will use this too." };
+  } catch (error) {
+    return { ok: false, message: describe(error) };
+  }
+}
+
+/**
+ * Save the console's choices and fire a batch with them. Both happen in one
+ * call so the run can never use a stale configuration.
+ */
+export async function saveAndRunAction(input: {
+  platforms: string[];
+  filters: RunFilters;
+  skipScout: boolean;
+}): Promise<ActionResult> {
+  try {
+    await runConfiguredBatch(input);
+    revalidatePath("/setup");
+    revalidatePath("/batches");
+    const scope = input.platforms.length ? `${input.platforms.length} platforms` : "all platforms";
+    return {
+      ok: true,
+      message: input.skipScout
+        ? `Batch started over stored jobs — ${scope}`
+        : `Batch started — scouting ${scope}`,
+    };
   } catch (error) {
     return { ok: false, message: describe(error) };
   }

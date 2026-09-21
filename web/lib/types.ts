@@ -122,8 +122,31 @@ export const REJECT_REASONS = [
 export type BatchStatus = "running" | "ok" | "partial" | "failed";
 export type BatchKind = "scheduled" | "manual" | "backfill";
 
+export interface ScoutStats {
+  fetched?: number;
+  kept?: number;
+  duplicates_url?: number;
+  duplicates_hash?: number;
+  duplicates_embedding?: number;
+  stale?: number;
+  inserted?: number;
+  /** Per-source yield, keyed by the platform (and board slug for ATS sources). */
+  by_source?: Record<string, number>;
+  /** What the run's filters dropped, by reason. */
+  filtered?: Record<string, number>;
+  source_errors?: Record<string, string>;
+}
+
+/** The Scout's own stats, as stored on a batch. */
+export type BatchScoutStats = ScoutStats;
+
 export interface BatchStats {
-  scout?: Record<string, unknown>;
+  /** What the run was asked to do. Empty platforms means "all". */
+  platforms?: string[];
+  filters?: RunFilters;
+  max_jobs?: number;
+  llm_budget?: number;
+  scout?: ScoutStats;
   analysed?: number;
   killed_by_gatekeeper?: number;
   killed_by_score?: number;
@@ -196,4 +219,119 @@ export interface ExtensionQueueRow {
     tier: Tier | null;
     jobs: { title: string | null; companies: { name: string | null } | null } | null;
   } | null;
+}
+
+/* ── Setup: the profile, the platforms, and the run's filters ───────────── */
+
+export interface ProfileLinks {
+  github?: string;
+  linkedin?: string;
+  portfolio?: string;
+  upwork?: string;
+  [key: string]: string | undefined;
+}
+
+export interface WorkAuth {
+  passport?: string;
+  current_visas?: string[];
+  needs_sponsorship?: boolean;
+  remote_ok_regions?: string[];
+  [key: string]: unknown;
+}
+
+export interface ProfileRole {
+  role_context?: string;
+  title?: string;
+  company?: string;
+  location?: string;
+  dates?: string;
+  [key: string]: unknown;
+}
+
+export interface Profile {
+  id: string;
+  full_name: string | null;
+  headline: string | null;
+  location: string | null;
+  email: string | null;
+  phone: string | null;
+  seniority: string | null;
+  years_experience: number | null;
+  salary_floor_usd: number | null;
+  skills: string[] | null;
+  roles: ProfileRole[] | null;
+  education: Record<string, unknown>[] | null;
+  projects: Record<string, unknown>[] | null;
+  alumni_networks: string[] | null;
+  links: ProfileLinks | null;
+  work_auth: WorkAuth | null;
+}
+
+/** The columns the API accepts on PATCH /profile — the same allow-list. */
+export type ProfilePatch = Partial<
+  Pick<
+    Profile,
+    | "full_name"
+    | "headline"
+    | "location"
+    | "email"
+    | "phone"
+    | "seniority"
+    | "years_experience"
+    | "salary_floor_usd"
+    | "skills"
+    | "roles"
+    | "education"
+    | "projects"
+    | "alumni_networks"
+    | "links"
+    | "work_auth"
+  >
+>;
+
+/** Everything the run console can ask of the Scout. All optional. */
+export interface RunFilters {
+  /** Keep postings matching any of these locations, or any remote posting. */
+  locations?: string[];
+  /** Keep postings whose title or description matches any of these. */
+  keywords?: string[];
+  /** Drop postings matching any of these. */
+  exclude_keywords?: string[];
+  remote_only?: boolean;
+  salary_floor_usd?: number;
+  /** intern | junior | mid | senior | staff | principal | lead | director */
+  seniority?: string[];
+  /** Overrides SCOUT_MAX_JOBS_PER_BATCH for this run. */
+  max_jobs?: number;
+  /** Overrides LLM_CALLS_PER_BATCH for this run. */
+  llm_calls?: number;
+}
+
+export interface PlatformInfo {
+  id: string;
+  label: string;
+  kind: "ats" | "aggregator";
+}
+
+export interface BoardInfo {
+  id: string;
+  kind: string;
+  slug: string;
+  company_name: string | null;
+  enabled: boolean | null;
+  last_polled_at: string | null;
+  last_error: string | null;
+  jobs_found: number | null;
+}
+
+export interface SourcesResponse {
+  platforms: PlatformInfo[];
+  boards: BoardInfo[];
+}
+
+export interface RunSettings {
+  platforms: string[];
+  filters: RunFilters;
+  defaults: { max_jobs: number; llm_calls: number };
+  ceilings: { max_jobs: number; llm_calls: number };
 }

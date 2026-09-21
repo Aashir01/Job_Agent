@@ -8,7 +8,8 @@ import pytest
 
 from app.agents.scout.ats import GreenhouseBoard, LeverBoard
 from app.agents.scout.base import RawJob, dedupe_hash, normalise_name, parse_salary, parse_when, strip_html
-from app.agents.scout.runner import Scout
+from app.agents.scout.registry import AGGREGATORS, PLATFORM_IDS
+from app.agents.scout.runner import Scout, _balanced_take
 from app.embeddings import cosine, hashing_embed
 
 
@@ -262,3 +263,51 @@ async def test_company_lookup_is_one_query_not_a_table_scan(db, settings):
     assert reads and reads[0].get("eq", {}).get("name_normalised") == "acme", (
         "the lookup must filter on the indexed column, not read the table"
     )
+
+
+# ── platform selection, and the truncation that starved 27 healthy sources ──
+def test_balanced_take_spreads_the_cap_across_sources():
+    """A plain ``[:limit]`` let whichever source was polled first take the whole
+    allowance — which is how all 47 stored jobs came from a single ATS while
+    Greenhouse, Lever and the aggregators were never reached."""
+    jobs = [
+        RawJob(f"src{i}", f"https://e.com/{i}/{n}", "Engineer", "Acme")
+        for i in range(3)
+        for n in range(100)
+    ]
+    taken = _balanced_take(jobs, 30)
+
+    assert len(taken) == 30
+    assert {j.source for j in taken} == {"src0", "src1", "src2"}, "one source still dominated"
+
+
+def test_balanced_take_is_a_no_op_under_the_cap():
+    jobs = [RawJob("s", f"https://e.com/{n}", "Engineer", "Acme") for n in range(5)]
+    assert _balanced_take(jobs, 10) == jobs
+
+
+async def test_build_sources_honours_the_selection(db, settings):
+    db.tables["source_seeds"] = [
+        {"kind": "greenhouse", "slug": "stripe", "company_name": "Stripe", "enabled": True},
+        {"kind": "ashby", "slug": "cohere", "company_name": "Cohere", "enabled": True},
+    ]
+    sources = await Scout(db, settings).build_sources(platforms=["ashby", "remotive"])
+    assert sorted(s.name for s in sources) == ["ashby", "remotive"]
+
+
+async def test_build_sources_without_a_selection_keeps_every_platform(db, settings):
+    db.tables["source_seeds"] = [
+        {"kind": "greenhouse", "slug": "stripe", "company_name": "Stripe", "enabled": True}
+    ]
+    sources = await Scout(db, settings).build_sources()
+    assert {s.name for s in sources} == {"greenhouse"} | set(AGGREGATORS)
+    assert set(AGGREGATORS) <= set(PLATFORM_IDS)
+
+
+async def test_disabled_boards_are_skipped(db, settings):
+    db.tables["source_seeds"] = [
+        {"kind": "ashby", "slug": "cohere", "enabled": False},
+        {"kind": "ashby", "slug": "ramp", "enabled": True},
+    ]
+    sources = await Scout(db, settings).build_sources(platforms=["ashby"])
+    assert [getattr(s, "slug", None) for s in sources] == ["ramp"]

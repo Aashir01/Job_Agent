@@ -79,6 +79,9 @@ class LLMRouter:
         self.calls_this_batch = 0
         self.cost_this_batch = 0.0
         self.calls_by_provider: dict[str, int] = {}
+        # Set per run from the dashboard's run console; None means use the
+        # setting, so an untouched install keeps the configured ceiling.
+        self.budget_limit: int | None = None
 
         s = self.settings
         self.providers = [
@@ -109,13 +112,18 @@ class LLMRouter:
         return any(p.available for p in self.providers)
 
     @property
-    def budget_remaining(self) -> int:
-        return max(0, self.settings.llm_calls_per_batch - self.calls_this_batch)
+    def budget(self) -> int:
+        return self.budget_limit or self.settings.llm_calls_per_batch
 
-    def reset_budget(self) -> None:
+    @property
+    def budget_remaining(self) -> int:
+        return max(0, self.budget - self.calls_this_batch)
+
+    def reset_budget(self, limit: int | None = None) -> None:
         self.calls_this_batch = 0
         self.cost_this_batch = 0.0
         self.calls_by_provider = {}
+        self.budget_limit = limit if limit and limit > 0 else None
 
     # ── the one entry point ───────────────────────────────────────────────
     async def generate(
@@ -131,10 +139,9 @@ class LLMRouter:
         batch_id: str | None = None,
         job_id: str | None = None,
     ) -> LLMResponse:
-        if self.calls_this_batch >= self.settings.llm_calls_per_batch:
+        if self.calls_this_batch >= self.budget:
             raise QuotaExhausted(
-                f"batch budget of {self.settings.llm_calls_per_batch} LLM calls is spent "
-                f"(agent={agent})"
+                f"batch budget of {self.budget} LLM calls is spent (agent={agent})"
             )
         if not self.available:
             raise LLMError("no LLM provider is configured", retryable=False)

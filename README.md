@@ -44,7 +44,7 @@ GitHub Actions cron ──HTTP──▶ FastAPI on Fly.io (one 256MB machine)
 | `api/app/agents/` | Scout, Analyst, Gatekeeper, Tailor, Scribe, Connector, Courier, Chaser |
 | `api/app/llm/` | Providers behind one interface: OpenRouter, Gemini, Groq, and the router that budgets and logs every call |
 | `api/app/routes/` | The HTTP surface, including the approval gate and the resume download |
-| `api/tests/` | 138 tests, mostly about the things that must never happen |
+| `api/tests/` | 163 tests, mostly about the things that must never happen |
 | `web/` | Next.js review dashboard, keyboard-driven |
 | `extension/` | MV3 extension and the tests that enforce its limits |
 
@@ -109,6 +109,7 @@ psql "$SUPABASE_DB_URL" -f db/migrations/0001_init.sql
 psql "$SUPABASE_DB_URL" -f db/migrations/0002_operational.sql
 psql "$SUPABASE_DB_URL" -f db/migrations/0003_indexes_rpc_rls.sql
 psql "$SUPABASE_DB_URL" -f db/migrations/0004_profile_fields.sql
+psql "$SUPABASE_DB_URL" -f db/migrations/0005_run_settings.sql
 ```
 
 No `psql` to hand? Pasting each file into the Supabase SQL Editor in that order
@@ -219,6 +220,39 @@ curl -X POST "$API_URL/batch/run?kind=manual&wait=true" -H "X-Agent-Key: $AGENT_
 curl -X POST "$API_URL/batch/run?kind=manual&skip_scout=true&wait=true" -H "X-Agent-Key: $AGENT_KEY"
 ```
 
+### The Setup page
+
+Everything the agents hunt with is set at `/setup`, not in a seed file or an
+`.env`: your profile, the platforms to poll, the filters applied to what they
+return, and the button that starts a run with all of it.
+
+- **Profile** — the facts the Tailor, Scribe and Connector may cite. The API
+  rejects an unknown field with a 400 rather than letting PostgREST reject the
+  whole row (PGRST204), which is how a real profile once failed to load at all.
+- **Platforms** — the twelve fetchable ones, plus the seeded company boards with
+  their per-board switch, last-polled time and yield. LinkedIn and Indeed are
+  deliberately absent: the extension harvests those from pages you are already
+  on, and nothing is scraped server-side.
+- **Filters** — `keywords`, `locations`, `exclude_keywords`, `remote_only`,
+  `salary_floor_usd`, `seniority`, and per-run overrides for `max_jobs` and the
+  LLM budget. All optional, all deterministic, and applied *during discovery*:
+  a filtered posting never spends an Analyst call. An undisclosed salary is
+  never a reason to drop a posting, and an unlevelled title is ambiguous rather
+  than a mismatch.
+- **Run** — *Save and run* persists the choices and starts the batch in one
+  call, so a run can never go out with a configuration you did not just
+  confirm. The scheduled batches read the same row, so the cron inherits it.
+
+An empty platform selection means *all platforms*, so an install that never
+opens this page behaves exactly as it did before it existed.
+
+```bash
+# the same thing over HTTP, for scripts
+curl -X PATCH "$API_URL/run-settings" -H "X-Agent-Key: $AGENT_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"platforms":["greenhouse","remoteok"],"filters":{"keywords":["python"],"max_jobs":200}}'
+```
+
 Review at `/`. `J`/`K` move, `A` approves, `X` then `1`–`5` rejects with a
 reason, `E` edits. The whole fast lane approves with one button. Each package
 carries its posting link and a **Resume .docx** download. That download is
@@ -230,7 +264,9 @@ A batch that produces nothing is usually not a bug. Watch the two counters it
 reports: `killed_by_gatekeeper` means you could not have applied, and
 `killed_by_score` means the bullet bank was too thin to evidence the posting.
 The score is 42% skills coverage, so a bank of two bullets kills almost
-everything. `GET /batch` shows the breakdown for the last runs.
+everything. `GET /batch` shows the breakdown for the last runs, and the batch
+page now also carries **jobs by platform** — because a cap applied in source
+order is the other way a batch comes back empty, however healthy the boards are.
 
 ### Windows
 
@@ -284,7 +320,7 @@ running out of quota is diagnosable rather than mysterious.
 ## Tests
 
 ```bash
-cd api && python -m pytest          # 138 tests
+cd api && python -m pytest          # 163 tests
 cd web && npm run typecheck && npm run build
 cd extension && npm test            # the invariants above, enforced
 ```

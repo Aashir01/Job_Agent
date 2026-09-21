@@ -9,6 +9,7 @@ const LINKS = [
   { href: "/applications", label: "Applications" },
   { href: "/batches", label: "Batches" },
   { href: "/extension", label: "Extension" },
+  { href: "/setup", label: "Setup" },
 ] as const;
 
 const BADGE_POLL_MS = 60000;

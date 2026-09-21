@@ -2,13 +2,15 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Query
 
 from ..batch import BatchRunner
 from ..config import get_settings
 from ..db import Database, get_db
 from ..registers.refresh import refresh_all
+from ..run_settings import load as load_run_settings, save as save_run_settings
 from ..security import require_agent_key
 
 log = logging.getLogger(__name__)
@@ -21,16 +23,44 @@ async def run_batch(
     kind: str = Query("scheduled", pattern="^(scheduled|manual|backfill)$"),
     skip_scout: bool = Query(False),
     wait: bool = Query(False, description="run inline instead of in the background"),
+    payload: dict[str, Any] | None = Body(None),
     db: Database = Depends(get_db),
 ) -> dict:
+    # A body from the run console is saved *before* the run starts, so the same
+    # choices also govern the scheduled batches: the cron reads the same row.
+    # The cron itself sends no body and keeps using whatever was last saved.
+    saved = None
+    if payload:
+        current = await load_run_settings(db)
+        try:
+            saved = await save_run_settings(
+                db,
+                payload.get("platforms", current["platforms"]),
+                payload.get("filters", current["filters"]),
+            )
+        except Exception as exc:
+            # A configuration the user just chose must not be silently ignored —
+            # running without it would be worse than not running at all.
+            raise HTTPException(
+                503,
+                f"could not save the run configuration ({exc}). Apply "
+                "db/migrations/0005_run_settings.sql, or start the run without a body.",
+            ) from exc
+
     runner = BatchRunner(db, get_settings())
     if wait:
         stats = await runner.run(kind=kind, skip_scout=skip_scout)
-        return {"started": True, "completed": True, "batch_id": stats.batch_id, "stats": stats.as_dict()}
+        return {
+            "started": True,
+            "completed": True,
+            "batch_id": stats.batch_id,
+            "stats": stats.as_dict(),
+            "settings": saved,
+        }
 
     # The cron job should not hold an HTTP connection for eight minutes.
     background.add_task(runner.run, kind, skip_scout)
-    return {"started": True, "completed": False, "kind": kind}
+    return {"started": True, "completed": False, "kind": kind, "settings": saved}
 
 
 @router.get("")
