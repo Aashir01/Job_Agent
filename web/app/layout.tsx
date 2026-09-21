@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 
 import { Nav } from "@/components/Nav";
+import { RunStatus } from "@/components/RunStatus";
 
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "job-agent — review queue",
-  description: "Approve, edit or reject drafted applications. Nothing leaves without a click.",
+  title: "job-agent — console",
+  description:
+    "Run the agents, approve what they draft, track what comes back. Nothing leaves without a click.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -35,9 +37,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
             <Nav />
 
-            <p className="ml-auto hidden text-2xs uppercase tracking-[0.14em] text-faint sm:block">
-              Agents draft · you approve
-            </p>
+            <div className="ml-auto flex items-center gap-4">
+              <RunStatus />
+              <p className="hidden text-2xs uppercase tracking-[0.14em] text-faint lg:block">
+                Agents draft · you approve
+              </p>
+            </div>
           </div>
         </header>
 

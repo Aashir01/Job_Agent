@@ -116,7 +116,6 @@ class LLMRouter:
         self.calls_this_batch = 0
         self.cost_this_batch = 0.0
         self.calls_by_provider = {}
-        self.calls_by_provider: dict[str, int] = {}
 
     # ── the one entry point ───────────────────────────────────────────────
     async def generate(

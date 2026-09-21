@@ -18,7 +18,7 @@ from .config import get_settings
 from .db import NotConfigured, get_db
 from .llm.base import QuotaExhausted
 from .mailer import DailyCapReached
-from .routes import batch, chaser, extension, health, packages
+from .routes import batch, chaser, extension, health, packages, stats
 
 logging.basicConfig(
     level=os.getenv("LOG_LEVEL", "INFO"),
@@ -63,6 +63,7 @@ app.add_middleware(
 )
 
 app.include_router(health.router)
+app.include_router(stats.router)
 app.include_router(batch.router)
 app.include_router(packages.router)
 app.include_router(extension.router)

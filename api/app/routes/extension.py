@@ -61,12 +61,19 @@ async def next_in_queue(db: Database = Depends(get_db)) -> dict:
 
 @router.get("/queue")
 async def list_queue(
-    status_filter: str = Query("pending", alias="status"),
-    limit: int = Query(20, le=100),
+    status_filter: str | None = Query(None, alias="status"),
+    limit: int = Query(50, le=200),
     db: Database = Depends(get_db),
 ) -> dict:
+    """The extension itself only ever claims /next; this list is the dashboard's
+    monitor, so it returns every status when no filter is given."""
+    filters = {"status": status_filter} if status_filter else None
     rows = await db.select(
-        "extension_queue", eq={"status": status_filter}, order="created_at.asc", limit=limit
+        "extension_queue",
+        columns="*,packages(tier,jobs(title,companies(name)))",
+        eq=filters,
+        order="created_at.desc",
+        limit=limit,
     )
     return {"items": rows}
 

@@ -5,9 +5,13 @@ import { revalidatePath } from "next/cache";
 import {
   ApiError,
   approveFastLane,
+  approveOutreach,
   approvePackage,
   editPackage,
+  refreshRegisters,
   rejectPackage,
+  runBatch,
+  runChaser,
 } from "@/lib/api";
 
 export interface ActionResult {
@@ -79,6 +83,66 @@ export async function approveFastLaneAction(limit = 20): Promise<ActionResult> {
       };
     }
     return { ok: true, message: `Approved and submitted ${res.approved} fast-lane packages` };
+  } catch (error) {
+    return { ok: false, message: describe(error) };
+  }
+}
+
+/**
+ * Starts the pipeline in the background on the API. The client polls
+ * /api/batch/latest for progress — this action returns as soon as the run
+ * is accepted, never when it finishes.
+ */
+export async function runBatchAction(skipScout = false): Promise<ActionResult> {
+  try {
+    await runBatch({ kind: "manual", skipScout });
+    revalidatePath("/batches");
+    return {
+      ok: true,
+      message: skipScout
+        ? "Batch started — processing stored jobs, discovery skipped"
+        : "Batch started — scouting, then building packages",
+    };
+  } catch (error) {
+    return { ok: false, message: describe(error) };
+  }
+}
+
+export async function runChaserAction(): Promise<ActionResult> {
+  try {
+    const res = await runChaser();
+    revalidatePath("/outreach");
+    return {
+      ok: true,
+      message: `Chaser done — ${res.follow_ups_now_due} follow-ups due, ${res.marked_ghosted} marked ghosted`,
+    };
+  } catch (error) {
+    return { ok: false, message: describe(error) };
+  }
+}
+
+export async function refreshRegistersAction(): Promise<ActionResult> {
+  try {
+    await refreshRegisters();
+    return { ok: true, message: "Sponsorship registers refreshed" };
+  } catch (error) {
+    return { ok: false, message: describe(error) };
+  }
+}
+
+/** §6: per-send content approval. `sendNow=false` approves but holds the send. */
+export async function approveOutreachAction(
+  id: string,
+  editedBody: string | null,
+  sendNow: boolean,
+): Promise<ActionResult> {
+  try {
+    const res = await approveOutreach(id, { body: editedBody ?? undefined, sendNow });
+    revalidatePath("/outreach");
+    if (!sendNow) return { ok: true, message: "Approved — held, not sent" };
+    return res.sent > 0
+      ? { ok: true, message: "Approved and sent" }
+      : { ok: false, message: "Approved, but the send failed — check the API logs" };
   } catch (error) {
     return { ok: false, message: describe(error) };
   }

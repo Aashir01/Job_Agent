@@ -13,6 +13,7 @@ import { REJECT_REASONS, type ReviewPackage, type Tier } from "@/lib/types";
 
 import { PackageDetail } from "./PackageDetail";
 import { ScorePill, TIER_META, TierBadge } from "./Tier";
+import { Toast } from "./Toast";
 
 const TIER_ORDER: Tier[] = ["fast_lane", "standard", "marginal"];
 
@@ -307,19 +308,9 @@ export function ReviewQueue({ initial }: { initial: ReviewPackage[] }) {
             Reject as: {REJECT_REASONS.map((r, i) => `${i + 1} ${r.label}`).join("  ·  ")}
           </span>
         )}
-
-        {toast && (
-          <span
-            role="status"
-            className={`ml-auto flex items-center gap-1.5 ${
-              toast.ok ? "text-fast" : "text-marginal"
-            }`}
-          >
-            <span aria-hidden>{toast.ok ? "✓" : "!"}</span>
-            {toast.message}
-          </span>
-        )}
       </footer>
+
+      <Toast toast={toast} onDismiss={() => setToast(null)} />
     </div>
   );
 }

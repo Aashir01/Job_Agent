@@ -1,6 +1,16 @@
 import "server-only";
 
-import type { ApplicationRow, QueueResponse, ReviewPackage, Tier } from "./types";
+import type {
+  ApplicationRow,
+  BatchDetail,
+  BatchRow,
+  DueOutreach,
+  ExtensionQueueRow,
+  QueueResponse,
+  ReviewPackage,
+  StatsOverview,
+  Tier,
+} from "./types";
 
 const BASE = (process.env.API_URL ?? "http://localhost:8000").replace(/\/$/, "");
 const KEY = process.env.AGENT_KEY ?? "";
@@ -109,4 +119,58 @@ export function getQuota(): Promise<{
   llm_failures_today: number;
 }> {
   return call(`/health/quota`);
+}
+
+export function getStatsOverview(): Promise<StatsOverview> {
+  return call(`/stats/overview`);
+}
+
+/**
+ * Never `wait=true` from the dashboard: a batch can run for minutes, past the
+ * serverless function limit. Fire it in the background and poll /batch instead.
+ */
+export function runBatch(opts: { kind?: string; skipScout?: boolean } = {}) {
+  const params = new URLSearchParams({ kind: opts.kind ?? "manual", wait: "false" });
+  if (opts.skipScout) params.set("skip_scout", "true");
+  return call<{ started: boolean; completed: boolean; kind: string }>(`/batch/run?${params}`, {
+    method: "POST",
+  });
+}
+
+export function runChaser() {
+  return call<{
+    follow_ups_now_due: number;
+    replies: Record<string, unknown>;
+    marked_ghosted: number;
+  }>(`/chaser/run`, { method: "POST" });
+}
+
+export function refreshRegisters() {
+  return call<{ results: unknown }>(`/batch/registers/refresh`, { method: "POST" });
+}
+
+export function getBatches(limit = 20): Promise<{ batches: BatchRow[] }> {
+  return call(`/batch?limit=${limit}`);
+}
+
+export function getBatch(id: string): Promise<BatchDetail> {
+  return call<BatchDetail>(`/batch/${id}`);
+}
+
+export function getDueOutreach(): Promise<{ due: DueOutreach[]; total: number }> {
+  return call(`/outreach/due`);
+}
+
+export function approveOutreach(id: string, opts: { body?: string; sendNow?: boolean } = {}) {
+  return call<{ ok: boolean; approved: boolean; sent: number; errors?: unknown }>(
+    `/outreach/${id}/approve`,
+    {
+      method: "POST",
+      body: JSON.stringify({ body: opts.body ?? null, send_now: opts.sendNow ?? true }),
+    },
+  );
+}
+
+export function getExtensionQueue(): Promise<{ items: ExtensionQueueRow[] }> {
+  return call(`/extension/queue?limit=100`);
 }

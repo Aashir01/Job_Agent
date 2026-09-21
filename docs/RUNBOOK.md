@@ -22,6 +22,22 @@ a batch that went wrong is visible without opening the database.
 
 ## When something looks wrong
 
+**Every scheduled run fails within seconds.**
+`batch`, `chaser` and `refresh-sponsor-registers` reach the deployed API with
+`API_URL` and `AGENT_KEY`, which they read from repository secrets. With the
+secrets unset the guard at the top of each job exits in about two seconds —
+long before any network call — and the run annotation reads
+`API_URL and AGENT_KEY repository secrets must be set`. Set them once, using
+the same values the API machine has:
+
+```bash
+gh secret set API_URL --body "https://your-app.fly.dev"
+gh secret set AGENT_KEY --body "<the same AGENT_KEY the API runs with>"
+```
+
+`ci` needs no secrets and passes on its own, so a green `ci` beside red
+scheduled runs is this and not a code failure.
+
 **The queue is empty.**
 Check the last batch: `GET /batch` shows `killed_by_gatekeeper` and
 `killed_by_score`. A high gatekeeper number with a thin queue usually means the

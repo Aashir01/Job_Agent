@@ -110,7 +110,7 @@ function banner(payload, filled) {
     "box-shadow:0 8px 28px rgba(0,0,0,.45)";
 
   const title = document.createElement("strong");
-  title.textContent = `Filled ${filled} field${filled === 1 ? "" : ""}`;
+  title.textContent = `Filled ${filled} field${filled === 1 ? "" : "s"}`;
   title.style.cssText = "display:block;color:#3ddc97;margin-bottom:4px";
 
   const body = document.createElement("p");

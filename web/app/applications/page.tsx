@@ -1,3 +1,4 @@
+import { ApiError } from "@/components/ApiError";
 import { getApplications } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
@@ -24,14 +25,7 @@ export default async function ApplicationsPage() {
   const result = await getApplications().catch((error: unknown) => error as Error);
 
   if (result instanceof Error) {
-    return (
-      <div className="animate-fade-in mx-auto max-w-lg rounded-2xl border border-marginal/40 bg-marginal/[0.06] p-6">
-        <h1 className="flex items-center gap-2 text-sm font-medium text-marginal">
-          <span aria-hidden>!</span> Cannot reach the API
-        </h1>
-        <p className="mt-2 text-sm leading-relaxed text-muted">{result.message}</p>
-      </div>
-    );
+    return <ApiError error={result} />;
   }
 
   const total = result.applications.length;

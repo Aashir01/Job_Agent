@@ -118,3 +118,82 @@ export const REJECT_REASONS = [
   { code: "comp", label: "Pay too low" },
   { code: "company", label: "Not this company" },
 ] as const;
+
+export type BatchStatus = "running" | "ok" | "partial" | "failed";
+export type BatchKind = "scheduled" | "manual" | "backfill";
+
+export interface BatchStats {
+  scout?: Record<string, unknown>;
+  analysed?: number;
+  killed_by_gatekeeper?: number;
+  killed_by_score?: number;
+  packages_built?: number;
+  tiers?: Record<string, number>;
+  rejected_rewrites?: number;
+  llm_calls?: number;
+  llm_cost_usd?: number;
+  llm_by_provider?: Record<string, number>;
+  quota_exhausted?: boolean;
+  errors?: string[];
+}
+
+export interface BatchRow {
+  id: string;
+  kind: BatchKind;
+  started_at: string;
+  finished_at: string | null;
+  status: BatchStatus;
+  stats: BatchStats;
+  error: string | null;
+}
+
+export interface BatchDetail {
+  batch: BatchRow;
+  llm_by_agent: Record<string, { calls: number; cost_usd: number; failures: number }>;
+}
+
+export interface StatsOverview {
+  day: string;
+  queue: { total: number; by_tier: Record<string, number> };
+  funnel: Record<string, number>;
+  applications_total: number;
+  outreach_due: number;
+  extension_queue: Record<string, number>;
+  latest_batch: BatchRow | null;
+  llm_daily: { day: string; calls: number; cost_usd: number }[];
+  decisions_30d: Record<string, number>;
+}
+
+export type OutreachKind = "pre_apply" | "follow_up_1" | "follow_up_2" | "thank_you";
+
+export interface DueOutreach {
+  id: string;
+  application_id: string | null;
+  contact_id: string | null;
+  kind: OutreachKind | string;
+  body: string | null;
+  due_at: string | null;
+  contacts: {
+    name: string | null;
+    email: string | null;
+    email_confidence: string | null;
+  } | null;
+  applications: { package_id: string | null; status: string | null } | null;
+}
+
+export type ExtensionQueueStatus =
+  | "pending" | "claimed" | "filled" | "submitted" | "abandoned";
+
+export interface ExtensionQueueRow {
+  id: string;
+  package_id: string | null;
+  target_url: string;
+  status: ExtensionQueueStatus | string;
+  claimed_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+  packages: {
+    tier: Tier | null;
+    jobs: { title: string | null; companies: { name: string | null } | null } | null;
+  } | null;
+}

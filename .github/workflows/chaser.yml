@@ -1,0 +1,57 @@
+# §6 chaser cadence.
+#
+#   06:30 / 18:30 UTC — after the 02:00 / 14:00 batches, so follow-ups drafted
+#   from this morning's submissions are due before the evening review, and
+#   replies landed during the US business day are picked up overnight.
+#
+# The chaser only *queues* follow-ups and polls Gmail. Nothing is sent until a
+# human approves the body on the dashboard's /outreach page.
+name: chaser
+
+on:
+  schedule:
+    - cron: "30 6 * * *"
+    - cron: "30 18 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: job-agent-chaser
+  cancel-in-progress: false
+
+jobs:
+  run-chaser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Run the chaser
+        env:
+          API_URL: ${{ secrets.API_URL }}
+          AGENT_KEY: ${{ secrets.AGENT_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${API_URL:-}" ] || [ -z "${AGENT_KEY:-}" ]; then
+            echo "::error::API_URL and AGENT_KEY repository secrets must be set"
+            exit 1
+          fi
+
+          response=$(curl --silent --show-error --fail-with-body \
+            --retry 3 --retry-delay 10 --retry-connrefused \
+            --max-time 300 \
+            -X POST "${API_URL%/}/chaser/run" \
+            -H "X-Agent-Key: ${AGENT_KEY}")
+
+          echo "$response" > chaser.json
+          python3 - <<'PY'
+          import json, os
+          data = json.load(open("chaser.json"))
+          replies = data.get("replies", {})
+          lines = [
+              "## Chaser result",
+              "",
+              f"- follow-ups now due: **{data.get('follow_ups_now_due', 0)}** (awaiting approval on /outreach)",
+              f"- replies found: {replies.get('replies_found', 0)}",
+              f"- marked ghosted: {data.get('marked_ghosted', 0)}",
+          ]
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as fh:
+              fh.write("\n".join(lines) + "\n")
+          PY

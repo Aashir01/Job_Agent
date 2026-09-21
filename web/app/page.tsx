@@ -1,26 +1,20 @@
+import { ApiError } from "@/components/ApiError";
 import { ReviewQueue } from "@/components/ReviewQueue";
-import { getQueue, getQuota } from "@/lib/api";
+import { RunControls } from "@/components/RunControls";
+import { StatsStrip } from "@/components/StatsStrip";
+import { getQueue, getQuota, getStatsOverview } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
 export default async function ReviewPage() {
-  const [queue, quota] = await Promise.allSettled([getQueue(), getQuota()]);
+  const [queue, quota, stats] = await Promise.allSettled([
+    getQueue(),
+    getQuota(),
+    getStatsOverview(),
+  ]);
 
   if (queue.status === "rejected") {
-    return (
-      <div className="animate-fade-in mx-auto max-w-lg rounded-2xl border border-marginal/40 bg-marginal/[0.06] p-6">
-        <h1 className="flex items-center gap-2 text-sm font-medium text-marginal">
-          <span aria-hidden>!</span> Cannot reach the API
-        </h1>
-        <p className="mt-2 text-sm leading-relaxed text-muted">
-          {queue.reason instanceof Error ? queue.reason.message : "unknown error"}
-        </p>
-        <p className="mt-4 border-t border-marginal/20 pt-3 text-xs text-faint">
-          Check <code className="font-mono text-muted">API_URL</code> and{" "}
-          <code className="font-mono text-muted">AGENT_KEY</code> in the dashboard environment.
-        </p>
-      </div>
-    );
+    return <ApiError error={queue.reason} />;
   }
 
   const caps = quota.status === "fulfilled" ? quota.value : null;
@@ -60,6 +54,10 @@ export default async function ReviewPage() {
           </dl>
         )}
       </div>
+
+      {stats.status === "fulfilled" && <StatsStrip stats={stats.value} />}
+
+      <RunControls />
 
       <ReviewQueue initial={queue.value.packages} />
     </div>
