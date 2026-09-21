@@ -44,7 +44,7 @@ GitHub Actions cron ──HTTP──▶ FastAPI on Fly.io (one 256MB machine)
 | `api/app/agents/` | Scout, Analyst, Gatekeeper, Tailor, Scribe, Connector, Courier, Chaser |
 | `api/app/llm/` | Providers behind one interface: OpenRouter, Gemini, Groq, and the router that budgets and logs every call |
 | `api/app/routes/` | The HTTP surface, including the approval gate and the resume download |
-| `api/tests/` | 129 tests, mostly about the things that must never happen |
+| `api/tests/` | 138 tests, mostly about the things that must never happen |
 | `web/` | Next.js review dashboard, keyboard-driven |
 | `extension/` | MV3 extension and the tests that enforce its limits |
 
@@ -91,8 +91,14 @@ The Tailor's rewrite is checked *after* the model speaks:
 
 A rewrite that fails is discarded and your own wording is used verbatim, with
 the rejection recorded in the diff so you can see the model tried to drift.
-The Scribe's output is separately audited for figures that appear nowhere in
-the verified material.
+
+The Scribe's cover letter and screening answers are audited the same way, and the
+audit does not stop at figures. A number that appears nowhere in the verified
+material is flagged, and so is a technology the letter names that the profile and
+the bullet bank cannot evidence — "gained hands-on experience with Kubernetes"
+carries no number for a figure check to catch. The job description is deliberately
+not part of that allow-list: naming a requirement is not the same as having done it.
+Warnings are advisory; they appear on the card under *Check before sending*.
 
 ## Setup
 
@@ -278,7 +284,7 @@ running out of quota is diagnosable rather than mysterious.
 ## Tests
 
 ```bash
-cd api && python -m pytest          # 129 tests
+cd api && python -m pytest          # 138 tests
 cd web && npm run typecheck && npm run build
 cd extension && npm test            # the invariants above, enforced
 ```

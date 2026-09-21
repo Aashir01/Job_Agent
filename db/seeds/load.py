@@ -31,6 +31,14 @@ async def load_profile(db: Database, path: pathlib.Path) -> None:
     data.pop("_comment", None)
     existing = await db.select_one("profile", limit=1)
     if existing:
+        # PostgREST rejects the whole row when it carries a column the table does
+        # not define (PGRST204), so one extra seed key keeps the real profile out
+        # entirely — and the example row stays behind, which looks like the
+        # loader was never run. Drop what the table cannot hold, and say so.
+        unknown = sorted(set(data) - set(existing))
+        if unknown:
+            print(f"  ignoring field(s) absent from the profile table: {', '.join(unknown)}")
+            data = {k: v for k, v in data.items() if k in existing}
         await db.update("profile", data, eq={"id": existing["id"]}, returning=False)
         print(f"  profile updated: {data.get('full_name')}")
     else:

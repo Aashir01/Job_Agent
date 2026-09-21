@@ -11,6 +11,7 @@ invented figures before it is stored.
 """
 from __future__ import annotations
 
+import json
 import logging
 import re
 from dataclasses import dataclass, field
@@ -100,6 +101,27 @@ _BUZZ_RE = re.compile(
     re.I,
 )
 
+# Technologies a claim can hide behind. The figure check cannot see a sentence
+# like "gained hands-on experience with Kubernetes and Docker" — there is no
+# number in it — so names are checked against the candidate's own material
+# instead. Kept to names that would matter if they were invented: a fabricated
+# tool is the commonest drift, and it never carries a figure to trip over.
+_TECH_TERMS = frozenset(
+    """airflow kafka spark hadoop dbt snowflake databricks bigquery redshift mlflow sagemaker
+    kubernetes k8s docker terraform ansible jenkins github actions gitlab circleci ci/cd cicd
+    aws gcp azure vertex ai redis graphql grpc postgresql postgres mysql mongodb elasticsearch
+    supabase pgvector faiss qdrant fastapi django flask langchain langgraph crewai
+    pytorch tensorflow scikit-learn pandas numpy python react nextjs typescript javascript rust""".split()
+)
+
+# Word boundaries so "java" does not fire on "javascript" and "rust" not on
+# "trust". Only word characters count — a sentence-final "Kubernetes." must still
+# match, which is why '.' is not treated as part of the term.
+_TECH_RE = {
+    term: re.compile(rf"(?<!\w){re.escape(term)}(?!\w)", re.I)
+    for term in sorted(_TECH_TERMS)
+}
+
 
 @dataclass
 class ScribeResult:
@@ -124,11 +146,23 @@ class ScribeResult:
         }
 
 
-def audit_claims(text: str, allowed_numbers: set[str]) -> list[str]:
-    """Flag figures that appear nowhere in the verified material.
+def _unevidenced_technologies(text: str, evidence: str) -> list[str]:
+    """Technologies named in the draft that appear nowhere in the evidence."""
+    haystack = (evidence or "").lower()
+    return [term for term, rx in _TECH_RE.items() if term not in haystack and rx.search(text)]
+
+
+def audit_claims(text: str, allowed_numbers: set[str], evidence: str = "") -> list[str]:
+    """Flag claims that appear nowhere in the verified material.
 
     Years ("2024") and small counts are ignored — the interesting fabrications
     are percentages and magnitudes.
+
+    ``evidence`` is the candidate's own material — their bullets, profile and
+    the company fact they were told to cite. The job description is deliberately
+    excluded: it says what the employer wants, not what the candidate has done,
+    so a skill that appears only there is still an unevidenced claim. Passing it
+    switches on the technology check; the figure check runs either way.
     """
     warnings = []
     for number in numbers_in(text):
@@ -138,6 +172,11 @@ def audit_claims(text: str, allowed_numbers: set[str]) -> list[str]:
         if bare.isdigit() and (len(bare) == 4 and bare.startswith(("19", "20")) or int(bare) <= 12):
             continue
         warnings.append(f"unverified figure in the draft: {number}")
+    if evidence:
+        for term in _unevidenced_technologies(text, evidence):
+            warnings.append(
+                f"technology with no evidence in the profile or bullet bank: {term}"
+            )
     if match := _BUZZ_RE.search(text):
         warnings.append(f"filler phrase to edit out: “{match.group(0)}”")
     return warnings
@@ -172,6 +211,7 @@ class Scribe:
 
         bullet_lines = []
         allowed_numbers: set[str] = set()
+        evidence_parts: list[str] = []
         for bullet in bullets:
             text = getattr(bullet, "final", None) or (
                 bullet.get("text") if isinstance(bullet, dict) else str(bullet)
@@ -181,7 +221,14 @@ class Scribe:
             )
             bullet_lines.append(f"- [{context}] {text}")
             allowed_numbers |= numbers_in(text)
+            evidence_parts += [text, context]
         allowed_numbers |= numbers_in(str(profile.get("years_experience") or ""))
+        # The audit's allow-list: what the candidate can legitimately claim, plus
+        # the company fact they were told to name. The job description is not in
+        # it — naming a requirement is not the same as having the experience.
+        evidence = " ".join(
+            evidence_parts + [self._evidence_block(profile), fact.cite() if fact else ""]
+        )
 
         questions = analysis.get("screening_questions") or []
         work_note = self._work_note(eligibility or {}, profile)
@@ -230,9 +277,12 @@ class Scribe:
                     }
                 )
 
-        warnings = audit_claims(letter, allowed_numbers)
+        warnings = audit_claims(letter, allowed_numbers, evidence)
         for answer in answers:
-            warnings += [f"{w} (screening answer)" for w in audit_claims(answer["answer"], allowed_numbers)]
+            warnings += [
+                f"{w} (screening answer)"
+                for w in audit_claims(answer["answer"], allowed_numbers, evidence)
+            ]
         unanswered = [q for q in questions if not any(a["question"][:40] in q or q[:40] in a["question"] for a in answers)]
         if unanswered:
             warnings.append(f"{len(unanswered)} screening question(s) left unanswered")
@@ -251,6 +301,23 @@ class Scribe:
         if links:
             parts.append("Links: " + ", ".join(f"{k}: {v}" for k, v in links.items() if v))
         return "\n".join(parts)
+
+    def _evidence_block(self, profile: dict[str, Any]) -> str:
+        """Everything the candidate can legitimately claim.
+
+        Wider than ``_profile_block``, which is only prompt copy: this is the
+        audit's allow-list, so it carries the skills, roles, education and
+        projects the model is not shown but which the candidate genuinely owns.
+        """
+        return " ".join(
+            [
+                str(profile.get("headline") or ""),
+                " ".join(profile.get("skills") or []),
+                json.dumps(profile.get("roles") or []),
+                json.dumps(profile.get("education") or []),
+                json.dumps(profile.get("projects") or []),
+            ]
+        )
 
     def _work_note(self, eligibility: dict[str, Any], profile: dict[str, Any]) -> str:
         """Tell the truth about work authorisation, in one clause."""

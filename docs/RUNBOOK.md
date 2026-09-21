@@ -38,6 +38,37 @@ gh secret set AGENT_KEY --body "<the same AGENT_KEY the API runs with>"
 `ci` needs no secrets and passes on its own, so a green `ci` beside red
 scheduled runs is this and not a code failure.
 
+**Everything in a package mentions a company I never worked for.**
+The database is still holding the `.example` seed, so the agents are writing
+about a fictional candidate — the agents read the database, not the files in
+`db/seeds/`. Check what they can actually see:
+
+```sql
+select role_context, strength from bullet_bank;
+```
+
+If that shows the example rows (or nothing), the real seed never landed. Two
+things stop it silently:
+
+- `profile.json` carrying a key the `profile` table does not define. PostgREST
+  rejects the whole row (PGRST204), so nothing is written and the example row
+  survives. `load.py` now drops the unknown field and says so.
+- `bullets.json` with `strength: null` on every line. `load.py` refuses an
+  unrated bullet by design, so the seed loads zero rows and the previously
+  loaded example bullets stay behind. Rate each bullet 1-5, then reload with
+  `--replace-bullets` so the demo rows are cleared rather than appended to.
+
+```bash
+python db/seeds/load.py --all --replace-bullets
+```
+
+**The letter claims something I never did.**
+Read the card's *Check before sending* warnings first: the audit flags figures
+and technologies that appear nowhere in your profile or bullet bank. It is a
+net, not a guarantee — a claim carrying neither a name nor a number ("I
+contributed to open-source tooling") still gets through. The letter is a draft
+to edit; that is what the human gate is for.
+
 **The queue is empty.**
 Check the last batch: `GET /batch` shows `killed_by_gatekeeper` and
 `killed_by_score`. A high gatekeeper number with a thin queue usually means the

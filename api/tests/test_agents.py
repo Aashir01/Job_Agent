@@ -187,6 +187,32 @@ def test_claim_audit_flags_filler():
     assert any("thrilled" in w for w in audit_claims("I am thrilled.", set()))
 
 
+def test_claim_audit_flags_an_unevidenced_technology():
+    """The fabrication the figure check cannot see: a claim with no number in it."""
+    warnings = audit_claims(
+        "I gained hands-on experience with Kubernetes and Docker in production environments.",
+        set(),
+        "Python FastAPI PostgreSQL pgvector LangChain Docker",
+    )
+    assert any("kubernetes" in w for w in warnings)
+    assert not any("docker" in w for w in warnings), "Docker is in the profile"
+
+
+def test_claim_audit_flags_a_technology_at_the_end_of_a_sentence():
+    """Sentence punctuation must not hide the name."""
+    warnings = audit_claims("I also deployed on Kubernetes.", set(), "Python")
+    assert any("kubernetes" in w for w in warnings)
+
+
+def test_claim_audit_passes_technologies_the_bank_can_evidence():
+    assert audit_claims("I built retrieval pipelines in Python with pgvector.", set(), "Python pgvector") == []
+
+
+def test_claim_audit_skips_the_technology_check_without_evidence():
+    """Callers that pass no evidence keep the old figure-and-filler behaviour."""
+    assert audit_claims("I used Kubernetes.", set()) == []
+
+
 async def test_scribe_reports_unanswered_screening_questions(db, settings):
     class PartialLLM(LLMRouter):
         async def generate_json(self, prompt, **kw):
