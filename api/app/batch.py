@@ -29,6 +29,7 @@ from .db import Database
 from .embeddings import Embedder
 from .llm.base import QuotaExhausted
 from .llm.router import LLMRouter
+from .notify import Notifier, build_batch_digest, build_error_digest
 from .run_settings import caps, load as load_run_settings
 
 log = logging.getLogger(__name__)
@@ -53,6 +54,7 @@ class BatchStats:
     llm_calls: int = 0
     llm_cost_usd: float = 0.0
     llm_by_provider: dict[str, int] = field(default_factory=dict)
+    notifications: dict[str, bool] = field(default_factory=dict)
     quota_exhausted: bool = False
     errors: list[str] = field(default_factory=list)
 
@@ -72,16 +74,24 @@ class BatchStats:
             "llm_calls": self.llm_calls,
             "llm_cost_usd": round(self.llm_cost_usd, 6),
             "llm_by_provider": self.llm_by_provider,
+            "notifications": self.notifications,
             "quota_exhausted": self.quota_exhausted,
             "errors": self.errors[:20],
         }
 
 
 class BatchRunner:
-    def __init__(self, db: Database, settings: Settings | None = None, llm: LLMRouter | None = None):
+    def __init__(
+        self,
+        db: Database,
+        settings: Settings | None = None,
+        llm: LLMRouter | None = None,
+        notifier: Notifier | None = None,
+    ):
         self.db = db
         self.settings = settings or get_settings()
         self.llm = llm or LLMRouter(self.settings, db)
+        self.notifier = notifier or Notifier(self.settings, db)
         self.embedder = Embedder(self.settings)
 
         self.scout = Scout(db, self.settings, self.embedder)
@@ -176,7 +186,30 @@ class BatchRunner:
                 returning=False,
             )
         log.info("batch %s finished: %s", batch_id, stats.as_dict())
+        stats.notifications = await self._notify(stats, batch_id, status)
         return stats
+
+    async def _notify(self, stats: BatchStats, batch_id: str, status: str) -> dict[str, bool]:
+        """Push the digest. A delivery failure is reported, never raised — a
+        batch that built packages has done its job whether or not the phone
+        buzzed."""
+        if not self.notifier.channels:
+            return {}
+        try:
+            if status == "failed":
+                digest = build_error_digest(
+                    "Batch", "; ".join(stats.errors[:3]) or "unknown error", self.settings
+                )
+            else:
+                digest = await build_batch_digest(self.db, stats.as_dict(), batch_id, self.settings)
+            results = await self.notifier.send(digest)
+        except Exception as exc:
+            log.warning("digest delivery failed: %s", exc)
+            return {}
+        for result in results:
+            if not result.ok:
+                log.warning("digest via %s failed: %s", result.channel, result.detail)
+        return {r.channel: r.ok for r in results}
 
     async def _jobs_to_process(self, limit: int) -> list[dict[str, Any]]:
         """Unanalysed jobs, newest first. A job the Gatekeeper already killed

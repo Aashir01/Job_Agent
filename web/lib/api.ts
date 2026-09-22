@@ -7,6 +7,8 @@ import type {
   BoardInfo,
   DueOutreach,
   ExtensionQueueRow,
+  NotifyStatus,
+  NotifyTestResult,
   Profile,
   ProfilePatch,
   QueueResponse,
@@ -237,4 +239,18 @@ export function runConfiguredBatch(input: {
     method: "POST",
     body: JSON.stringify({ platforms: input.platforms, filters: input.filters }),
   });
+}
+
+/* ── Notifications ─────────────────────────────────────────────────────── */
+
+export function getNotifyStatus(): Promise<NotifyStatus> {
+  return call(`/notify/status`);
+}
+
+export function sendNotifyTest(): Promise<NotifyTestResult> {
+  return call(`/notify/test`, { method: "POST" });
+}
+
+export function resendBatchDigest(batchId: string): Promise<NotifyTestResult> {
+  return call(`/notify/resend/${batchId}`, { method: "POST" });
 }

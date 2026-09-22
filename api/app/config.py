@@ -84,6 +84,26 @@ class Settings(BaseSettings):
     register_url_nl: str = ""
     register_url_ca: str = ""
 
+    # ── Notifications ─────────────────────────────────────────────────────
+    # After every batch the system pushes a digest of what it found. Enable any
+    # subset; each is independent and a failure in one never blocks the others.
+    #
+    # Telegram is the recommended default: free, instant on a phone, and set up
+    # in two minutes (talk to @BotFather for a token, then @userinfobot for your
+    # chat id). WhatsApp has no free first-party API — use notify_webhook_url
+    # with a relay such as CallMeBot if you want messages there.
+    telegram_bot_token: str = ""
+    telegram_chat_id: str = ""
+    discord_webhook_url: str = ""
+    slack_webhook_url: str = ""
+    notify_webhook_url: str = ""          # generic JSON POST; covers WhatsApp relays
+    notify_email: str = ""                # digest recipient, via Resend
+    dashboard_url: str = ""               # so a digest can link to the queue
+
+    notify_top_n: int = 8                 # how many packages to list in a digest
+    notify_on_empty: bool = False         # say nothing when a run found nothing
+    notify_on_error: bool = True          # always report a failed run
+
     # ── Chaser cadence (§6) ───────────────────────────────────────────────
     follow_up_1_days: int = 3
     follow_up_2_days: int = 10
@@ -115,6 +135,22 @@ class Settings(BaseSettings):
     @property
     def llm_configured(self) -> bool:
         return bool(self.openrouter_api_key or self.gemini_api_key or self.groq_api_key)
+
+    @property
+    def notify_channels(self) -> list[str]:
+        """Which digest channels are configured, in delivery order."""
+        configured = []
+        if self.telegram_bot_token and self.telegram_chat_id:
+            configured.append("telegram")
+        if self.discord_webhook_url:
+            configured.append("discord")
+        if self.slack_webhook_url:
+            configured.append("slack")
+        if self.notify_webhook_url:
+            configured.append("webhook")
+        if self.notify_email and self.resend_api_key and self.from_email:
+            configured.append("email")
+        return configured
 
 
 @lru_cache(maxsize=1)

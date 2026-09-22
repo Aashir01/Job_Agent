@@ -335,3 +335,31 @@ export interface RunSettings {
   defaults: { max_jobs: number; llm_calls: number };
   ceilings: { max_jobs: number; llm_calls: number };
 }
+
+/* ── Notifications ─────────────────────────────────────────────────────── */
+
+export interface NotifyChannel {
+  id: "telegram" | "discord" | "slack" | "webhook" | "email";
+  active: boolean;
+  label: string;
+  env: string[];
+  how: string;
+  /** Which of `env` is still unset — "not configured" is useless when you set
+   *  one of two variables and cannot tell which half is missing. */
+  missing: string[];
+}
+
+export interface NotifyStatus {
+  configured: string[];
+  any: boolean;
+  dashboard_url: string | null;
+  notify_on_empty: boolean;
+  notify_top_n: number;
+  channels: NotifyChannel[];
+}
+
+export interface NotifyTestResult {
+  sent: boolean;
+  reason?: string;
+  results: { channel: string; ok: boolean; detail: string }[];
+}

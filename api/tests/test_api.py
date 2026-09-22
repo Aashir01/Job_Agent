@@ -146,3 +146,35 @@ def test_sightings_reject_an_unsupported_source(client):
         headers=AUTH,
     )
     assert resp.status_code == 422
+
+
+def test_notify_status_names_the_missing_half_of_each_channel(client, monkeypatch):
+    """'Not configured' is useless when you set one of two variables."""
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "t")
+    get_settings.cache_clear()
+    body = client.get("/notify/status", headers=AUTH).json()
+    telegram = next(c for c in body["channels"] if c["id"] == "telegram")
+    assert telegram["active"] is False
+    assert telegram["missing"] == ["TELEGRAM_CHAT_ID"]
+    assert "BotFather" in telegram["how"]
+    get_settings.cache_clear()
+
+
+def test_notify_status_lists_every_channel_with_setup_instructions(client):
+    body = client.get("/notify/status", headers=AUTH).json()
+    assert {c["id"] for c in body["channels"]} == {
+        "telegram", "discord", "slack", "webhook", "email"
+    }
+    assert all(c["how"] and c["env"] for c in body["channels"])
+    assert body["any"] is False
+
+
+def test_notify_test_says_why_rather_than_failing_silently(client):
+    body = client.post("/notify/test", headers=AUTH).json()
+    assert body["sent"] is False
+    assert "no channel" in body["reason"]
+
+
+def test_notify_routes_need_the_agent_key(client):
+    assert client.get("/notify/status").status_code == 401
+    assert client.post("/notify/test").status_code == 401

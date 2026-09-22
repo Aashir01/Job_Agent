@@ -12,9 +12,11 @@ import {
   editPackage,
   refreshRegisters,
   rejectPackage,
+  resendBatchDigest,
   runBatch,
   runChaser,
   runConfiguredBatch,
+  sendNotifyTest,
   setBoardEnabled,
   updateProfile,
   updateRunSettings,
@@ -235,6 +237,46 @@ export async function approveOutreachAction(
     return res.sent > 0
       ? { ok: true, message: "Approved and sent" }
       : { ok: false, message: "Approved, but the send failed — check the API logs" };
+  } catch (error) {
+    return { ok: false, message: describe(error) };
+  }
+}
+
+
+/* ── Notifications ─────────────────────────────────────────────────────── */
+
+export async function sendTestNotificationAction(): Promise<ActionResult> {
+  try {
+    const res = await sendNotifyTest();
+    if (!res.sent) {
+      const failed = res.results.filter((r) => !r.ok);
+      return {
+        ok: false,
+        message: failed.length
+          ? `Failed: ${failed.map((r) => `${r.channel} — ${r.detail}`).join("; ")}`
+          : (res.reason ?? "No channel is configured."),
+      };
+    }
+    const ok = res.results.filter((r) => r.ok).map((r) => r.channel);
+    const failed = res.results.filter((r) => !r.ok);
+    return {
+      ok: failed.length === 0,
+      message: failed.length
+        ? `Sent to ${ok.join(", ")}; ${failed.map((r) => `${r.channel} failed (${r.detail})`).join("; ")}`
+        : `Test digest sent to ${ok.join(", ")}. Check your phone.`,
+    };
+  } catch (error) {
+    return { ok: false, message: describe(error) };
+  }
+}
+
+export async function resendDigestAction(batchId: string): Promise<ActionResult> {
+  try {
+    const res = await resendBatchDigest(batchId);
+    const ok = res.results.filter((r) => r.ok).map((r) => r.channel);
+    return res.sent
+      ? { ok: true, message: `Digest re-sent to ${ok.join(", ")}.` }
+      : { ok: false, message: res.reason ?? "Nothing was sent — no channel is configured." };
   } catch (error) {
     return { ok: false, message: describe(error) };
   }

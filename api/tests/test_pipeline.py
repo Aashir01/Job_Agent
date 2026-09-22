@@ -10,6 +10,7 @@ import pytest
 from app.batch import BatchRunner
 from app.llm.base import LLMError, QuotaExhausted
 from app.llm.router import LLMRouter, parse_json
+from app.notify import DeliveryResult, Notifier
 
 
 class RecordingLLM(LLMRouter):
@@ -205,3 +206,74 @@ async def test_provider_usage_reaches_the_daily_ledger(db, settings):
     assert stats.llm_by_provider == {"gemini": 1}
     bumps = [params for fn, params in db.rpc_calls if fn == "bump_quota"]
     assert bumps == [{"resource_name": "gemini", "amount": 1}]
+
+
+async def test_a_completed_batch_pushes_a_digest(db, settings):
+    """The queue filling at 02:00 UTC is worth nothing if nobody is told."""
+    _seed(db, "Work from anywhere with an employer of record.")
+    settings.telegram_bot_token = "t"
+    settings.telegram_chat_id = "c"
+
+    sent: list = []
+
+    class CapturingNotifier(Notifier):
+        async def send(self, digest, client=None):
+            sent.append(digest)
+            return [DeliveryResult("telegram", True)]
+
+    llm = RecordingLLM(settings, db, {"analyst": CLEAN_ANALYSIS, "tailor": {"bullets": []},
+                                      "scribe": {"cover_letter": "x"}, "connector": {}})
+    stats = await BatchRunner(db, settings, llm, CapturingNotifier(settings, db)).run(skip_scout=True)
+
+    assert stats.notifications == {"telegram": True}
+    assert len(sent) == 1
+    assert "1 new application" in sent[0].headline
+
+
+async def test_a_failed_batch_reports_the_failure(db, settings):
+    settings.telegram_bot_token = "t"
+    settings.telegram_chat_id = "c"
+    sent: list = []
+
+    class CapturingNotifier(Notifier):
+        async def send(self, digest, client=None):
+            sent.append(digest)
+            return [DeliveryResult("telegram", True)]
+
+    class ExplodingRunner(BatchRunner):
+        async def _jobs_to_process(self, limit):
+            raise RuntimeError("Supabase refused the connection")
+
+    llm = RecordingLLM(settings, db, {})
+    await ExplodingRunner(db, settings, llm, CapturingNotifier(settings, db)).run(skip_scout=True)
+
+    assert len(sent) == 1
+    assert sent[0].kind == "error"
+    assert "Supabase refused" in sent[0].error
+
+
+async def test_a_dead_notification_channel_never_fails_the_batch(db, settings):
+    """A built package is a built package whether or not the phone buzzed."""
+    _seed(db, "Work from anywhere with an employer of record.")
+    settings.telegram_bot_token = "t"
+    settings.telegram_chat_id = "c"
+
+    class BrokenNotifier(Notifier):
+        async def send(self, digest, client=None):
+            raise RuntimeError("Telegram is unreachable")
+
+    llm = RecordingLLM(settings, db, {"analyst": CLEAN_ANALYSIS, "tailor": {"bullets": []},
+                                      "scribe": {"cover_letter": "x"}, "connector": {}})
+    stats = await BatchRunner(db, settings, llm, BrokenNotifier(settings, db)).run(skip_scout=True)
+
+    assert stats.packages_built == 1
+    assert stats.notifications == {}
+    assert db.tables["packages"][0]["status"] == "queued"
+
+
+async def test_no_digest_work_happens_when_no_channel_is_configured(db, settings):
+    _seed(db, "Work from anywhere with an employer of record.")
+    llm = RecordingLLM(settings, db, {"analyst": CLEAN_ANALYSIS, "tailor": {"bullets": []},
+                                      "scribe": {"cover_letter": "x"}, "connector": {}})
+    stats = await BatchRunner(db, settings, llm).run(skip_scout=True)
+    assert stats.notifications == {}

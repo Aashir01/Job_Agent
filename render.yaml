@@ -1,0 +1,65 @@
+# One-click deploy of the API to Render's free tier.
+#
+#   https://dashboard.render.com/blueprint/new  →  point it at this repository.
+#
+# The free instance sleeps after ~15 minutes idle and takes a few seconds to
+# wake, which is fine: the dashboard is the only thing that calls it, and the
+# scheduled batches do not — they run inside GitHub Actions and talk to
+# Supabase directly, so the schedule keeps working while this is asleep.
+services:
+  - type: web
+    name: job-agent-api
+    runtime: python
+    plan: free
+    rootDir: api
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: ENVIRONMENT
+        value: prod
+
+      # ── Required ──────────────────────────────────────────────────────
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      # Shared secret the dashboard and extension send as X-Agent-Key.
+      # Generated once here; copy it into Vercel and the extension options.
+      - key: AGENT_KEY
+        generateValue: true
+
+      # ── At least one LLM provider ─────────────────────────────────────
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+
+      # ── Where the dashboard lives, for CORS and digest links ──────────
+      - key: CORS_ORIGINS
+        sync: false
+      - key: DASHBOARD_URL
+        sync: false
+
+      # ── Notifications (optional; set the ones you use) ────────────────
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false
+      - key: DISCORD_WEBHOOK_URL
+        sync: false
+      - key: SLACK_WEBHOOK_URL
+        sync: false
+      - key: NOTIFY_WEBHOOK_URL
+        sync: false
+      - key: NOTIFY_EMAIL
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: FROM_EMAIL
+        sync: false

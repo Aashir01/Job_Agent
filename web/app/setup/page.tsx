@@ -1,7 +1,8 @@
 import { ApiError } from "@/components/ApiError";
+import { NotificationSettings } from "@/components/NotificationSettings";
 import { ProfileForm } from "@/components/ProfileForm";
 import { RunConsole } from "@/components/RunConsole";
-import { getProfile, getRunSettings, getSources } from "@/lib/api";
+import { getNotifyStatus, getProfile, getRunSettings, getSources } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
@@ -14,10 +15,11 @@ export const dynamic = "force-dynamic";
  * your headline.
  */
 export default async function SetupPage() {
-  const [profile, sources, settings] = await Promise.allSettled([
+  const [profile, sources, settings, notify] = await Promise.allSettled([
     getProfile(),
     getSources(),
     getRunSettings(),
+    getNotifyStatus(),
   ]);
 
   if (profile.status === "rejected") {
@@ -56,6 +58,10 @@ export default async function SetupPage() {
       )}
 
       <ProfileForm initial={profile.value.profile} />
+
+      <NotificationSettings
+        status={notify.status === "fulfilled" ? notify.value : null}
+      />
 
       {ready && (
         <RunConsole

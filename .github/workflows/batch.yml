@@ -5,7 +5,12 @@
 #                           they reach the queue inside the 72-hour window where
 #                           response rates are highest. This is the important one.
 #
-# §8 budget: 2000 GH Actions minutes a month, spent as 2 runs × ~8 min.
+# The batch runs here, in the runner, against Supabase directly. It used to POST
+# to a deployed API, which meant the schedule could not work until something was
+# hosted — every scheduled run failed in six seconds on a missing API_URL. The
+# runner already has the compute, so nothing needs deploying for the cron to work.
+#
+# §8 budget: 2000 GH Actions minutes a month, spent as 2 runs of a few minutes.
 name: batch
 
 on:
@@ -31,58 +36,57 @@ concurrency:
 jobs:
   run-batch:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: api
+    env:
+      # Required. Without these the run stops immediately and says so.
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+      # At least one LLM provider.
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      # Optional: where the digest goes, and what it links to.
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      NOTIFY_WEBHOOK_URL: ${{ secrets.NOTIFY_WEBHOOK_URL }}
+      NOTIFY_EMAIL: ${{ secrets.NOTIFY_EMAIL }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      FROM_EMAIL: ${{ secrets.FROM_EMAIL }}
+      DASHBOARD_URL: ${{ vars.DASHBOARD_URL }}
+      # Optional extras.
+      ADZUNA_APP_ID: ${{ secrets.ADZUNA_APP_ID }}
+      ADZUNA_APP_KEY: ${{ secrets.ADZUNA_APP_KEY }}
+      HUNTER_API_KEY: ${{ secrets.HUNTER_API_KEY }}
+      LLM_CALLS_PER_BATCH: ${{ vars.LLM_CALLS_PER_BATCH || '300' }}
     steps:
-      - name: Trigger the batch
-        id: trigger
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: api/requirements.txt
+
+      - run: pip install -r requirements.txt
+
+      - name: Check configuration
+        run: python -m app.cli doctor
+
+      - name: Run the batch
         env:
-          API_URL: ${{ secrets.API_URL }}
-          AGENT_KEY: ${{ secrets.AGENT_KEY }}
           KIND: ${{ inputs.kind || 'scheduled' }}
           SKIP_SCOUT: ${{ inputs.skip_scout || 'false' }}
         run: |
           set -euo pipefail
-          if [ -z "${API_URL:-}" ] || [ -z "${AGENT_KEY:-}" ]; then
-            echo "::error::API_URL and AGENT_KEY repository secrets must be set"
-            exit 1
+          args=(batch --kind "$KIND")
+          # An explicit if, not `[ … ] && args+=(…)`: under `set -e` that line
+          # fails the whole step the moment anything is appended after it.
+          if [ "$SKIP_SCOUT" = "true" ]; then
+            args+=(--skip-scout)
           fi
-
-          # wait=true runs the pipeline inline so this job's exit code reflects
-          # the batch, not just the HTTP handshake. Fly cold-starts the machine.
-          response=$(curl --silent --show-error --fail-with-body \
-            --retry 3 --retry-delay 10 --retry-connrefused \
-            --max-time 900 \
-            -X POST "${API_URL%/}/batch/run?kind=${KIND}&skip_scout=${SKIP_SCOUT}&wait=true" \
-            -H "X-Agent-Key: ${AGENT_KEY}")
-
-          echo "$response" > batch.json
-          python3 - <<'PY'
-          import json, os
-          data = json.load(open("batch.json"))
-          stats = data.get("stats", {})
-          lines = [
-              "## Batch result",
-              "",
-              f"- batch id: `{data.get('batch_id', 'n/a')}`",
-              f"- packages built: **{stats.get('packages_built', 0)}**",
-              f"- killed by the Gatekeeper: {stats.get('killed_by_gatekeeper', 0)}",
-              f"- killed on score: {stats.get('killed_by_score', 0)}",
-              f"- LLM calls: {stats.get('llm_calls', 0)} (${stats.get('llm_cost_usd', 0)})",
-              f"- tiers: `{stats.get('tiers', {})}`",
-              f"- scout: `{stats.get('scout', {})}`",
-          ]
-          if stats.get("quota_exhausted"):
-              lines.append("- :warning: **LLM budget exhausted** — remaining jobs roll to the next batch")
-          for err in stats.get("errors", [])[:5]:
-              lines.append(f"- :x: {err}")
-          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as fh:
-              fh.write("\n".join(lines) + "\n")
-          PY
-
-      - name: Fail if the batch reported failure
-        run: |
-          set -euo pipefail
-          status=$(python3 -c "import json;print(json.load(open('batch.json')).get('stats',{}).get('errors',[]) and 'errors' or 'clean')")
-          if [ "$status" = "errors" ]; then
-            echo "::warning::the batch completed with errors; see the job summary"
-          fi
+          python -m app.cli "${args[@]}"

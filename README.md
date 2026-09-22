@@ -188,17 +188,47 @@ cp db/seeds/profile.example.json db/seeds/profile.json && $EDITOR db/seeds/profi
 python db/seeds/load.py --all
 ```
 
-### 4. Deploy
+### 4. Turn the schedule on
+
+Add `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` and one LLM key as **repository
+secrets** (Settings → Secrets and variables → Actions). That is all the
+twice-daily run needs — it executes inside the GitHub runner and talks to
+Supabase directly, so nothing has to be deployed for the schedule to work.
+
+Then **Actions → batch → Run workflow**. The first step prints exactly what is
+and is not configured, and the run posts a summary table to the job page.
+
+### 5. Get told what it found
+
+A run that quietly fills a queue at 02:00 UTC is worth nothing if you have to
+remember to look, so every run pushes a digest — what was built, the top
+matches with scores and links, and a link back to the queue.
+
+Telegram is the quickest: message [@BotFather](https://t.me/BotFather) for a
+token, **send your new bot any message** (a bot cannot open a conversation with
+you), then [@userinfobot](https://t.me/userinfobot) for your chat id. Set
+`TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`.
+
+Discord, Slack, email (Resend) and a generic webhook work the same way. WhatsApp
+has no free first-party API — point `NOTIFY_WEBHOOK_URL` at a relay such as
+CallMeBot; the digest is sent both as JSON and as a `?text=` parameter.
 
 ```bash
-cd api && fly launch --no-deploy && fly secrets set $(grep -v '^#' ../.env | xargs) && fly deploy
-cd ../web && vercel --prod     # set API_URL and AGENT_KEY as server-side env vars
+cd api && python -m app.cli notify-test    # or /setup → Notifications → Send test
 ```
 
-Set `API_URL` and `AGENT_KEY` as GitHub Actions repository secrets so the cron
-can reach the API.
+### 6. Deploy the dashboard (optional)
 
-### 5. Extension
+Only needed to review in a browser. Both tiers are free:
+
+- **API → Render.** [Blueprint → New](https://dashboard.render.com/blueprint/new),
+  point it at this repo; `render.yaml` is picked up and generates `AGENT_KEY`.
+- **Dashboard → Vercel.** Import the repo with **Root Directory `web`**, and set
+  `API_URL` and `AGENT_KEY`.
+
+Full walkthrough, including which secret goes where: [`docs/DEPLOY.md`](docs/DEPLOY.md).
+
+### 7. Extension
 
 `chrome://extensions` → Developer mode → Load unpacked → `extension/`. Open its
 options and paste the same API URL and agent key.
@@ -213,11 +243,16 @@ cd api && python -m venv .venv && .venv/bin/pip install -r requirements.txt
 # dashboard locally — needs API_URL and AGENT_KEY in web/.env.local
 cd web && npm install && npm run dev
 
-# fire a batch by hand
-curl -X POST "$API_URL/batch/run?kind=manual&wait=true" -H "X-Agent-Key: $AGENT_KEY"
+# run a batch with no server at all — the same code path the cron uses
+cd api && python -m app.cli batch --kind manual
+python -m app.cli batch --kind manual --skip-scout   # process stored jobs only
+python -m app.cli chaser        # queue follow-ups, detect replies
+python -m app.cli registers     # refresh the sponsorship registers
+python -m app.cli notify-test   # prove the digest reaches your phone
+python -m app.cli doctor        # what is configured, and does the database answer
 
-# skip discovery and only process jobs already stored
-curl -X POST "$API_URL/batch/run?kind=manual&skip_scout=true&wait=true" -H "X-Agent-Key: $AGENT_KEY"
+# or through a deployed API
+curl -X POST "$API_URL/batch/run?kind=manual&wait=true" -H "X-Agent-Key: $AGENT_KEY"
 ```
 
 ### The Setup page
