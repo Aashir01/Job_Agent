@@ -1,56 +1,154 @@
 {
   "_comment": [
-    "Curated seed for source_seeds (§6, source 1). Companies chosen for being",
-    "remote-friendly, EOR-using, or known international hirers — the ones the",
+    "Curated seed for source_seeds (\u00a76, source 1). Companies chosen for being",
+    "remote-friendly, EOR-using, or known international hirers \u2014 the ones the",
     "Gatekeeper's hires_internationally flag is most likely to compound on.",
-    "Board tokens rot: run `python db/seeds/verify_boards.py` to check them and",
-    "prune what has moved. The file is data, not truth."
+    "",
+    "Board tokens rot. 13 were removed on 2026-09-22 after a live batch got a",
+    "hard 404 from each; Scout now disables a board that 404s, so the list",
+    "prunes itself from here. Run `python db/seeds/verify_boards.py` to check",
+    "before seeding. The file is data, not truth."
   ],
   "boards": [
-    { "kind": "greenhouse", "slug": "airbyte", "company_name": "Airbyte" },
-    { "kind": "greenhouse", "slug": "cloudflare", "company_name": "Cloudflare" },
-    { "kind": "greenhouse", "slug": "databricks", "company_name": "Databricks" },
-    { "kind": "greenhouse", "slug": "dbtlabs", "company_name": "dbt Labs" },
-    { "kind": "greenhouse", "slug": "elastic", "company_name": "Elastic" },
-    { "kind": "greenhouse", "slug": "gitlab", "company_name": "GitLab" },
-    { "kind": "greenhouse", "slug": "grafanalabs", "company_name": "Grafana Labs" },
-    { "kind": "greenhouse", "slug": "hashicorp", "company_name": "HashiCorp" },
-    { "kind": "greenhouse", "slug": "mongodb", "company_name": "MongoDB" },
-    { "kind": "greenhouse", "slug": "mozilla", "company_name": "Mozilla" },
-    { "kind": "greenhouse", "slug": "postman", "company_name": "Postman" },
-    { "kind": "greenhouse", "slug": "sourcegraph", "company_name": "Sourcegraph" },
-    { "kind": "greenhouse", "slug": "stripe", "company_name": "Stripe" },
-    { "kind": "greenhouse", "slug": "twilio", "company_name": "Twilio" },
-    { "kind": "greenhouse", "slug": "vercel", "company_name": "Vercel" },
-
-    { "kind": "lever", "slug": "attentive", "company_name": "Attentive" },
-    { "kind": "lever", "slug": "binance", "company_name": "Binance" },
-    { "kind": "lever", "slug": "canonical", "company_name": "Canonical" },
-    { "kind": "lever", "slug": "chainalysis", "company_name": "Chainalysis" },
-    { "kind": "lever", "slug": "getcircle", "company_name": "Circle" },
-    { "kind": "lever", "slug": "kraken", "company_name": "Kraken" },
-    { "kind": "lever", "slug": "matterport", "company_name": "Matterport" },
-    { "kind": "lever", "slug": "netlify", "company_name": "Netlify" },
-    { "kind": "lever", "slug": "plaid", "company_name": "Plaid" },
-    { "kind": "lever", "slug": "voiceflow", "company_name": "Voiceflow" },
-
-    { "kind": "ashby", "slug": "astronomer", "company_name": "Astronomer" },
-    { "kind": "ashby", "slug": "clerk", "company_name": "Clerk" },
-    { "kind": "ashby", "slug": "cohere", "company_name": "Cohere" },
-    { "kind": "ashby", "slug": "deepgram", "company_name": "Deepgram" },
-    { "kind": "ashby", "slug": "hex", "company_name": "Hex" },
-    { "kind": "ashby", "slug": "linear", "company_name": "Linear" },
-    { "kind": "ashby", "slug": "posthog", "company_name": "PostHog" },
-    { "kind": "ashby", "slug": "ramp", "company_name": "Ramp" },
-    { "kind": "ashby", "slug": "replit", "company_name": "Replit" },
-    { "kind": "ashby", "slug": "supabase", "company_name": "Supabase" },
-    { "kind": "ashby", "slug": "weaviate", "company_name": "Weaviate" },
-
-    { "kind": "workable", "slug": "alan", "company_name": "Alan" },
-    { "kind": "workable", "slug": "blinkist", "company_name": "Blinkist" },
-    { "kind": "workable", "slug": "tide", "company_name": "Tide" },
-
-    { "kind": "smartrecruiters", "slug": "Bosch", "company_name": "Bosch" },
-    { "kind": "smartrecruiters", "slug": "Visa", "company_name": "Visa" }
+    {
+      "kind": "greenhouse",
+      "slug": "cloudflare",
+      "company_name": "Cloudflare"
+    },
+    {
+      "kind": "greenhouse",
+      "slug": "databricks",
+      "company_name": "Databricks"
+    },
+    {
+      "kind": "greenhouse",
+      "slug": "elastic",
+      "company_name": "Elastic"
+    },
+    {
+      "kind": "greenhouse",
+      "slug": "gitlab",
+      "company_name": "GitLab"
+    },
+    {
+      "kind": "greenhouse",
+      "slug": "grafanalabs",
+      "company_name": "Grafana Labs"
+    },
+    {
+      "kind": "greenhouse",
+      "slug": "mongodb",
+      "company_name": "MongoDB"
+    },
+    {
+      "kind": "greenhouse",
+      "slug": "mozilla",
+      "company_name": "Mozilla"
+    },
+    {
+      "kind": "greenhouse",
+      "slug": "stripe",
+      "company_name": "Stripe"
+    },
+    {
+      "kind": "greenhouse",
+      "slug": "twilio",
+      "company_name": "Twilio"
+    },
+    {
+      "kind": "greenhouse",
+      "slug": "vercel",
+      "company_name": "Vercel"
+    },
+    {
+      "kind": "lever",
+      "slug": "binance",
+      "company_name": "Binance"
+    },
+    {
+      "kind": "lever",
+      "slug": "kraken",
+      "company_name": "Kraken"
+    },
+    {
+      "kind": "ashby",
+      "slug": "astronomer",
+      "company_name": "Astronomer"
+    },
+    {
+      "kind": "ashby",
+      "slug": "clerk",
+      "company_name": "Clerk"
+    },
+    {
+      "kind": "ashby",
+      "slug": "cohere",
+      "company_name": "Cohere"
+    },
+    {
+      "kind": "ashby",
+      "slug": "deepgram",
+      "company_name": "Deepgram"
+    },
+    {
+      "kind": "ashby",
+      "slug": "hex",
+      "company_name": "Hex"
+    },
+    {
+      "kind": "ashby",
+      "slug": "linear",
+      "company_name": "Linear"
+    },
+    {
+      "kind": "ashby",
+      "slug": "posthog",
+      "company_name": "PostHog"
+    },
+    {
+      "kind": "ashby",
+      "slug": "ramp",
+      "company_name": "Ramp"
+    },
+    {
+      "kind": "ashby",
+      "slug": "replit",
+      "company_name": "Replit"
+    },
+    {
+      "kind": "ashby",
+      "slug": "supabase",
+      "company_name": "Supabase"
+    },
+    {
+      "kind": "ashby",
+      "slug": "weaviate",
+      "company_name": "Weaviate"
+    },
+    {
+      "kind": "workable",
+      "slug": "alan",
+      "company_name": "Alan"
+    },
+    {
+      "kind": "workable",
+      "slug": "blinkist",
+      "company_name": "Blinkist"
+    },
+    {
+      "kind": "workable",
+      "slug": "tide",
+      "company_name": "Tide"
+    },
+    {
+      "kind": "smartrecruiters",
+      "slug": "Bosch",
+      "company_name": "Bosch"
+    },
+    {
+      "kind": "smartrecruiters",
+      "slug": "Visa",
+      "company_name": "Visa"
+    }
   ]
 }

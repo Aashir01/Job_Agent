@@ -14,7 +14,7 @@ import asyncio
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Sequence
+from typing import Any, Sequence
 
 import httpx
 
@@ -105,6 +105,8 @@ class Scout:
         self.db = db
         self.settings = settings or get_settings()
         self.embedder = embedder or Embedder(self.settings)
+        # Boards that answered 404 in the last poll, so they can be switched off.
+        self.dead_boards: set[str] = set()
 
     # ── source assembly ───────────────────────────────────────────────────
     async def build_sources(
@@ -155,6 +157,7 @@ class Scout:
         sources = list(sources)
         semaphore = asyncio.Semaphore(self.settings.scout_concurrency)
         errors: dict[str, str] = {}
+        self.dead_boards = set()
 
         async with httpx.AsyncClient(
             timeout=self.settings.http_timeout_s,
@@ -172,6 +175,16 @@ class Scout:
                         key = getattr(source, "slug", None)
                         label = f"{source.name}:{key}" if key else source.name
                         errors[label] = f"{type(exc).__name__}: {exc}"[:300]
+                        # A 404 is the board itself saying it is gone — renamed,
+                        # moved ATS, or taken private. That never recovers on its
+                        # own, unlike a timeout or a 5xx, so mark it for
+                        # disabling rather than paying for it twice a day forever.
+                        if (
+                            isinstance(exc, httpx.HTTPStatusError)
+                            and exc.response.status_code == 404
+                            and key
+                        ):
+                            self.dead_boards.add(label)
                         log.warning("scout %s failed: %s", label, exc)
                         return []
 
@@ -217,6 +230,11 @@ class Scout:
             candidates, limit or self.settings.scout_max_jobs_per_batch
         )
         if not candidates:
+            # Still record the poll. This is the branch a totally dead set of
+            # boards takes, so returning early here is how a rotted slug ends up
+            # showing "never polled, no error" on the setup page — the one case
+            # where the error matters most.
+            await self._mark_polled(sources, errors, result.by_source)
             return result
 
         known_urls = await self._known(
@@ -355,14 +373,20 @@ class Scout:
             if not slug:
                 continue
             label = f"{source.name}:{slug}"
+            patch: dict[str, Any] = {
+                "last_polled_at": now,
+                "last_error": errors.get(label),
+                "jobs_found": by_source.get(label, 0),
+            }
+            if label in self.dead_boards:
+                # Switched off, not deleted: the slug may just have been renamed,
+                # and /setup shows it with the 404 so it can be fixed or removed.
+                patch["enabled"] = False
+                log.warning("disabling %s — the board returned 404", label)
             try:
                 await self.db.update(
                     "source_seeds",
-                    {
-                        "last_polled_at": now,
-                        "last_error": errors.get(label),
-                        "jobs_found": by_source.get(label, 0),
-                    },
+                    patch,
                     eq={"kind": source.name, "slug": slug},
                     returning=False,
                 )

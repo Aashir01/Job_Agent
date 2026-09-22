@@ -311,3 +311,101 @@ async def test_disabled_boards_are_skipped(db, settings):
     ]
     sources = await Scout(db, settings).build_sources(platforms=["ashby"])
     assert [getattr(s, "slug", None) for s in sources] == ["ramp"]
+
+
+async def test_a_board_that_404s_is_switched_off(db, settings):
+    """A 404 is the board saying it is gone — renamed, moved ATS, or private.
+    It never recovers on its own, so polling it twice a day forever is waste."""
+    db.tables["source_seeds"] = [
+        {"id": "s1", "kind": "greenhouse", "slug": "gone", "enabled": True},
+        {"id": "s2", "kind": "greenhouse", "slug": "alive", "enabled": True},
+    ]
+    db.rpc_returns["match_jobs"] = []
+
+    class Board:
+        ats_type = "greenhouse"
+
+        def __init__(self, name, slug, dead):
+            self.name, self.slug, self.dead = name, slug, dead
+
+        async def fetch(self, client):
+            if self.dead:
+                request = httpx.Request("GET", f"https://boards.example/{self.slug}")
+                raise httpx.HTTPStatusError(
+                    "404", request=request, response=httpx.Response(404, request=request)
+                )
+            return [RawJob(f"greenhouse:{self.slug}", "https://e.com/1", "Engineer", "Alive Co")]
+
+    await Scout(db, settings).run(
+        [Board("greenhouse", "gone", True), Board("greenhouse", "alive", False)]
+    )
+
+    seeds = {s["slug"]: s for s in db.tables["source_seeds"]}
+    assert seeds["gone"]["enabled"] is False
+    assert seeds["gone"]["last_error"]
+    assert seeds["alive"].get("enabled") is not False, "a healthy board must stay on"
+
+
+async def test_a_timeout_does_not_switch_a_board_off(db, settings):
+    """Transient failures recover. Disabling on one is how a good source is lost."""
+    db.tables["source_seeds"] = [
+        {"id": "s1", "kind": "lever", "slug": "flaky", "enabled": True}
+    ]
+    db.rpc_returns["match_jobs"] = []
+
+    class Flaky:
+        name, slug, ats_type = "lever", "flaky", "lever"
+
+        async def fetch(self, client):
+            raise httpx.ReadTimeout("too slow")
+
+    await Scout(db, settings).run([Flaky()])
+    seed = db.tables["source_seeds"][0]
+    assert seed.get("enabled") is not False
+    assert "ReadTimeout" in seed["last_error"]
+
+
+async def test_a_500_does_not_switch_a_board_off(db, settings):
+    db.tables["source_seeds"] = [
+        {"id": "s1", "kind": "ashby", "slug": "wobbly", "enabled": True}
+    ]
+    db.rpc_returns["match_jobs"] = []
+
+    class Wobbly:
+        name, slug, ats_type = "ashby", "wobbly", "ashby"
+
+        async def fetch(self, client):
+            request = httpx.Request("GET", "https://api.ashbyhq.com/wobbly")
+            raise httpx.HTTPStatusError(
+                "500", request=request, response=httpx.Response(500, request=request)
+            )
+
+    await Scout(db, settings).run([Wobbly()])
+    assert db.tables["source_seeds"][0].get("enabled") is not False
+
+
+async def test_a_poll_where_every_board_fails_still_records_why(db, settings):
+    """The `no candidates` path is the one a fully rotted seed list takes, so
+    returning early from it is how a dead board shows as "never polled, no
+    error" — precisely when the error is the thing you need."""
+    db.tables["source_seeds"] = [
+        {"id": "s1", "kind": "greenhouse", "slug": "gone", "enabled": True}
+    ]
+    db.rpc_returns["match_jobs"] = []
+
+    class Gone:
+        name, slug, ats_type = "greenhouse", "gone", "greenhouse"
+
+        async def fetch(self, client):
+            request = httpx.Request("GET", "https://boards.example/gone")
+            raise httpx.HTTPStatusError(
+                "404", request=request, response=httpx.Response(404, request=request)
+            )
+
+    result = await Scout(db, settings).run([Gone()])
+    assert result.kept == 0
+
+    seed = db.tables["source_seeds"][0]
+    assert seed["last_polled_at"], "the poll was never recorded"
+    assert "404" in seed["last_error"]
+    assert seed["enabled"] is False
