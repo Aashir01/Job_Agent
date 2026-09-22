@@ -6,6 +6,18 @@ on:
   pull_request:
 
 jobs:
+  # A composite action that references an unavailable context fails to *load*,
+  # so the step errors and the check it performs silently never runs. That is
+  # invisible in review and only shows up in a job log. Catch it here.
+  actions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - run: python .github/scripts/lint_actions.py
+
   api:
     runs-on: ubuntu-latest
     defaults:

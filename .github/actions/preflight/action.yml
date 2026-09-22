@@ -1,11 +1,17 @@
 name: Preflight configuration check
 description: >
-  Report which secrets this job can actually see, and stop with a precise
-  remedy when a required one is missing.
+  Report which secrets a job can actually see, and say which required ones are
+  missing. Reports only — the caller decides whether that is fatal.
+
+# NOTE: the `secrets` context does not exist inside a composite action, not even
+# inside a string. An expression mentioning it anywhere in this file makes the
+# whole manifest fail to load with "Unrecognized named-value: 'secrets'", and
+# the check silently never runs. The caller passes the context in as an input;
+# that expression is evaluated in the workflow, where `secrets` does exist.
 
 inputs:
   secrets-json:
-    description: 'Pass `${{ toJSON(secrets) }}`. Values are masked by Actions; only names are printed.'
+    description: "The secrets context, serialised by the caller. Values are masked by Actions; only names are read."
     required: true
   require-llm:
     description: "Whether this job needs an LLM provider key."
@@ -16,6 +22,9 @@ outputs:
   ready:
     description: "true when every required secret is visible to the job."
     value: ${{ steps.check.outputs.ready }}
+  missing:
+    description: "Space-separated names of what is missing."
+    value: ${{ steps.check.outputs.missing }}
 
 runs:
   using: composite
@@ -28,21 +37,20 @@ runs:
       run: |
         set -euo pipefail
 
-        # The `secrets` context lists every secret the job can see. Actions masks
-        # the values in logs, and we never echo the JSON anyway — only the key
-        # names. This is the one check that separates "I set it" from "this job
-        # can see it", which is the distinction that actually matters: a secret
-        # added under Environments, Dependabot or Codespaces is invisible here
-        # and resolves to an empty string with no warning at all.
+        # The context lists every secret the job can see. Actions masks the
+        # values in logs and we never echo the JSON anyway — only key names.
+        # This is the check that separates "I set it" from "this job can see
+        # it": a secret added under Environments, Dependabot or Codespaces is
+        # invisible here and resolves to an empty string with no warning.
         umask 077
-        vault="$RUNNER_TEMP/secrets.json"
+        vault="$RUNNER_TEMP/preflight-secrets.json"
         printf '%s' "$SECRETS_JSON" > "$vault"
         if ! jq -e 'type == "object"' "$vault" >/dev/null 2>&1; then
-          # Never print the file: on the off chance it holds a value rather than
-          # the context, echoing it would leak a credential into a public log.
+          # Never print the file: if the input really is a single secret value,
+          # echoing it would write a credential into a public repository's log.
           rm -f "$vault"
           echo "::error::The secrets context did not arrive as a JSON object."
-          echo "Pass it as: secrets-json: \${{ toJSON(secrets) }}"
+          echo "The caller must pass the whole context, serialised with toJSON."
           exit 1
         fi
         visible=$(jq -r 'keys[]' "$vault" | grep -vx 'github_token' || true)
@@ -55,7 +63,7 @@ runs:
         has SUPABASE_SERVICE_KEY  || missing+=("SUPABASE_SERVICE_KEY")
         if [ "$REQUIRE_LLM" = "true" ]; then
           if ! has OPENROUTER_API_KEY && ! has GEMINI_API_KEY && ! has GROQ_API_KEY; then
-            missing+=("OPENROUTER_API_KEY or GEMINI_API_KEY or GROQ_API_KEY")
+            missing+=("OPENROUTER_API_KEY|GEMINI_API_KEY|GROQ_API_KEY")
           fi
         fi
 
@@ -73,15 +81,17 @@ runs:
           echo
         } >> "$GITHUB_STEP_SUMMARY"
 
+        printf 'Secrets visible to this job:\n%s\n' "${visible:-  (none)}"
+
         if [ ${#missing[@]} -eq 0 ]; then
           echo "ready=true" >> "$GITHUB_OUTPUT"
-          echo "All required secrets are visible."
+          echo "missing=" >> "$GITHUB_OUTPUT"
           echo "All required configuration is present." >> "$GITHUB_STEP_SUMMARY"
           exit 0
         fi
 
         echo "ready=false" >> "$GITHUB_OUTPUT"
-
+        echo "missing=${missing[*]}" >> "$GITHUB_OUTPUT"
         {
           echo "**Missing:**"
           echo
@@ -95,15 +105,15 @@ runs:
           echo ">"
           echo "> | Where you may have put it | Why it is invisible here |"
           echo "> |---|---|"
-          echo "> | **Environment** secrets | Only readable by a job that declares \`environment:\`. |"
+          echo "> | The **Variables** tab (same page) | Variables are a different store from secrets. |"
+          echo "> | **Environment** secrets | Only readable by a job that declares an environment. |"
           echo "> | **Dependabot** tab | A separate store; Actions never sees it. |"
           echo "> | **Codespaces** tab | Also separate. |"
-          echo "> | Your **user/org** account | Needs the repository granted access. |"
+          echo "> | Your **user/org** account | Needs this repository granted access. |"
           echo "> | A **different repository** | Check the URL of the settings page. |"
           echo ">"
           echo "> Names are case-sensitive and must match exactly, with no spaces."
         } >> "$GITHUB_STEP_SUMMARY"
 
-        echo "::error::Missing required configuration: ${missing[*]}. See the job summary."
-        printf 'Secrets visible to this job:\n%s\n' "${visible:-  (none)}"
-        exit 1
+        # Reporting only. The caller decides whether missing config is fatal.
+        exit 0

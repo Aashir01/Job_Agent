@@ -38,11 +38,13 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      # Reports and keeps going: the whole point is to see the full picture,
-      # not to stop at the first missing thing.
+      # The action only reports, so the run continues to the database and
+      # seed-data checks even when secrets are missing — the point is to see
+      # the whole picture, not to stop at the first problem. The job still
+      # ends red (last step), because a diagnostic that found a fatal problem
+      # should not show a green check.
       - name: Which secrets can this job see?
         id: preflight
-        continue-on-error: true
         uses: ./.github/actions/preflight
         with:
           secrets-json: ${{ toJSON(secrets) }}
@@ -72,4 +74,5 @@ jobs:
             echo "Add the missing secrets above, then run **doctor** again."
             echo "Once it is green, run **batch**."
           } >> "$GITHUB_STEP_SUMMARY"
-          echo "::warning::Required configuration is missing — see the job summary."
+          echo "::error::Missing: ${{ steps.preflight.outputs.missing }}"
+          exit 1

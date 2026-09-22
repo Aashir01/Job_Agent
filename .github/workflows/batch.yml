@@ -67,9 +67,16 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: Preflight — can this job see the secrets?
+        id: preflight
         uses: ./.github/actions/preflight
         with:
           secrets-json: ${{ toJSON(secrets) }}
+
+      - name: Stop if the configuration is missing
+        if: steps.preflight.outputs.ready != 'true'
+        run: |
+          echo "::error::Missing: ${{ steps.preflight.outputs.missing }} — see the job summary."
+          exit 1
 
       - uses: actions/setup-python@v6
         with:
