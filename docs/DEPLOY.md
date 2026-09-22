@@ -68,9 +68,23 @@ means thin packages. Ten to thirty real bullets is a good target.
 
 ### 1e. Check it
 
-**Actions → batch → Run workflow.** The first step (`doctor`) prints exactly
-what is and is not configured. The run then appears as a summary table on the
-job page.
+**Actions → doctor → Run workflow.** It changes nothing and applies for
+nothing; it just reports which secrets the workflows can see, whether Supabase
+answers, and how much seed data is loaded. Once it is green, run **batch**.
+
+> **If a secret you added does not appear in doctor's list**, it is not a
+> repository Actions secret, whatever page you added it on. GitHub keeps four
+> separate stores and only one of them is readable here:
+>
+> | Store | Readable by these workflows? |
+> |---|---|
+> | Secrets and variables → Actions → **Repository secrets** | **yes** |
+> | Secrets and variables → Actions → **Environment secrets** | only by a job declaring `environment:` |
+> | Secrets and variables → **Dependabot** | no |
+> | **Codespaces** secrets | no |
+>
+> The symptom is silent: an unreadable secret resolves to an empty string with
+> no warning, so the job looks configured and behaves as though it is not.
 
 Nothing needs deploying for this to work — the batch runs inside the runner and
 talks to Supabase directly.
@@ -195,6 +209,8 @@ misconfiguration shows up as a summary table rather than a stack trace.
 | Symptom | Cause |
 |---|---|
 | Workflow fails in seconds | `SUPABASE_URL` / `SUPABASE_SERVICE_KEY` not set |
+| "I added the secrets and it still says unset" | They went to Environment, Dependabot or Codespaces secrets, or to another repository. Run **doctor** — it lists what this job can actually see. |
+| A secret name is right but still empty | Names are case-sensitive; a trailing space in the name creates a different secret |
 | Runs fine, queue stays empty | Empty bullet bank, or filters too narrow — see the batch detail page |
 | Digest never arrives | Never messaged the bot first (Telegram), or the run genuinely found nothing and `NOTIFY_ON_EMPTY` is off |
 | Dashboard says "cannot reach the API" | `API_URL` wrong, `AGENT_KEY` mismatched, or Render still waking |

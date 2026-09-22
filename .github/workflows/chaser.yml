@@ -46,6 +46,12 @@ jobs:
       DASHBOARD_URL: ${{ vars.DASHBOARD_URL }}
     steps:
       - uses: actions/checkout@v5
+
+      - name: Preflight — can this job see the secrets?
+        uses: ./.github/actions/preflight
+        with:
+          secrets-json: ${{ toJSON(secrets) }}
+
       - uses: actions/setup-python@v6
         with:
           python-version: "3.11"

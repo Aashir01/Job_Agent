@@ -1,0 +1,100 @@
+name: Preflight configuration check
+description: >
+  Report which secrets this job can actually see, and stop with a precise
+  remedy when a required one is missing.
+
+inputs:
+  secrets-json:
+    description: 'Pass `${{ toJSON(secrets) }}`. Values are masked by Actions; only names are printed.'
+    required: true
+  require-llm:
+    description: "Whether this job needs an LLM provider key."
+    required: false
+    default: "true"
+
+outputs:
+  ready:
+    description: "true when every required secret is visible to the job."
+    value: ${{ steps.check.outputs.ready }}
+
+runs:
+  using: composite
+  steps:
+    - id: check
+      shell: bash
+      env:
+        SECRETS_JSON: ${{ inputs.secrets-json }}
+        REQUIRE_LLM: ${{ inputs.require-llm }}
+      run: |
+        set -euo pipefail
+
+        # The `secrets` context lists every secret the job can see. Actions masks
+        # the values in logs, and we never echo the JSON anyway — only the key
+        # names. This is the one check that separates "I set it" from "this job
+        # can see it", which is the distinction that actually matters: a secret
+        # added under Environments, Dependabot or Codespaces is invisible here
+        # and resolves to an empty string with no warning at all.
+        umask 077
+        printf '%s' "$SECRETS_JSON" > "$RUNNER_TEMP/secrets.json"
+        visible=$(jq -r 'keys[]' "$RUNNER_TEMP/secrets.json" | grep -vx 'github_token' || true)
+        rm -f "$RUNNER_TEMP/secrets.json"
+
+        has() { printf '%s\n' "$visible" | grep -qx "$1"; }
+
+        missing=()
+        has SUPABASE_URL          || missing+=("SUPABASE_URL")
+        has SUPABASE_SERVICE_KEY  || missing+=("SUPABASE_SERVICE_KEY")
+        if [ "$REQUIRE_LLM" = "true" ]; then
+          if ! has OPENROUTER_API_KEY && ! has GEMINI_API_KEY && ! has GROQ_API_KEY; then
+            missing+=("OPENROUTER_API_KEY or GEMINI_API_KEY or GROQ_API_KEY")
+          fi
+        fi
+
+        count=$(printf '%s\n' "$visible" | grep -c . || true)
+        {
+          echo "### Configuration"
+          echo
+          if [ "$count" -eq 0 ]; then
+            echo "This job can see **no repository secrets at all**."
+          else
+            echo "Secrets visible to this job (${count}):"
+            echo
+            printf '%s\n' "$visible" | sed 's/^/- `/; s/$/`/'
+          fi
+          echo
+        } >> "$GITHUB_STEP_SUMMARY"
+
+        if [ ${#missing[@]} -eq 0 ]; then
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+          echo "All required secrets are visible."
+          echo "All required configuration is present." >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+        fi
+
+        echo "ready=false" >> "$GITHUB_OUTPUT"
+
+        {
+          echo "**Missing:**"
+          echo
+          for name in "${missing[@]}"; do echo "- \`$name\`"; done
+          echo
+          echo "Add them at **Settings → Secrets and variables → Actions**, on the"
+          echo "**Repository secrets** tab, then re-run."
+          echo
+          echo "> Every name on that tab appears in the list above. If a secret you"
+          echo "> added is *not* listed, it went somewhere this job cannot read:"
+          echo ">"
+          echo "> | Where you may have put it | Why it is invisible here |"
+          echo "> |---|---|"
+          echo "> | **Environment** secrets | Only readable by a job that declares \`environment:\`. |"
+          echo "> | **Dependabot** tab | A separate store; Actions never sees it. |"
+          echo "> | **Codespaces** tab | Also separate. |"
+          echo "> | Your **user/org** account | Needs the repository granted access. |"
+          echo "> | A **different repository** | Check the URL of the settings page. |"
+          echo ">"
+          echo "> Names are case-sensitive and must match exactly, with no spaces."
+        } >> "$GITHUB_STEP_SUMMARY"
+
+        echo "::error::Missing required configuration: ${missing[*]}. See the job summary."
+        printf 'Secrets visible to this job:\n%s\n' "${visible:-  (none)}"
+        exit 1

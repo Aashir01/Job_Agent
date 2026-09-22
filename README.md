@@ -195,8 +195,14 @@ secrets** (Settings → Secrets and variables → Actions). That is all the
 twice-daily run needs — it executes inside the GitHub runner and talks to
 Supabase directly, so nothing has to be deployed for the schedule to work.
 
-Then **Actions → batch → Run workflow**. The first step prints exactly what is
-and is not configured, and the run posts a summary table to the job page.
+Then **Actions → doctor → Run workflow**. It changes nothing; it reports which
+secrets the workflows can see, whether Supabase answers, and what is seeded.
+Once it is green, run **batch**.
+
+If a secret you added does not show up in that list, it is not a *repository
+Actions* secret — GitHub keeps Environment, Dependabot and Codespaces secrets in
+separate stores that Actions cannot read, and an unreadable secret resolves to
+an empty string with no warning.
 
 ### 5. Get told what it found
 
