@@ -35,9 +35,18 @@ runs:
         # added under Environments, Dependabot or Codespaces is invisible here
         # and resolves to an empty string with no warning at all.
         umask 077
-        printf '%s' "$SECRETS_JSON" > "$RUNNER_TEMP/secrets.json"
-        visible=$(jq -r 'keys[]' "$RUNNER_TEMP/secrets.json" | grep -vx 'github_token' || true)
-        rm -f "$RUNNER_TEMP/secrets.json"
+        vault="$RUNNER_TEMP/secrets.json"
+        printf '%s' "$SECRETS_JSON" > "$vault"
+        if ! jq -e 'type == "object"' "$vault" >/dev/null 2>&1; then
+          # Never print the file: on the off chance it holds a value rather than
+          # the context, echoing it would leak a credential into a public log.
+          rm -f "$vault"
+          echo "::error::The secrets context did not arrive as a JSON object."
+          echo "Pass it as: secrets-json: \${{ toJSON(secrets) }}"
+          exit 1
+        fi
+        visible=$(jq -r 'keys[]' "$vault" | grep -vx 'github_token' || true)
+        rm -f "$vault"
 
         has() { printf '%s\n' "$visible" | grep -qx "$1"; }
 
