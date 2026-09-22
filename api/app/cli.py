@@ -229,12 +229,37 @@ async def cmd_doctor(args: argparse.Namespace) -> int:
             rows = await db.select("profile", columns="id,full_name", limit=1)
             checks.append(("Database reachable", True,
                            f"profile: {rows[0].get('full_name') if rows else 'no row yet'}"))
+            counts: dict[str, int] = {}
             for table in ("bullet_bank", "source_seeds", "jobs", "packages"):
                 try:
                     found = await db.select(table, columns="id", limit=1000)
+                    counts[table] = len(found)
                     checks.append((f"  {table}", bool(found), f"{len(found)} row(s)"))
                 except Exception as exc:
                     checks.append((f"  {table}", False, str(exc)[:120]))
+
+            # A thin bullet bank is the usual reason a working pipeline still
+            # produces nothing: skills coverage is 42 of the 100 fit points and
+            # it is measured against these rows, so a handful of bullets cannot
+            # cover a real job description and almost everything dies at the
+            # score gate. Two rows in particular means bullets.example.json —
+            # the template — rather than anyone's actual resume.
+            bullets = counts.get("bullet_bank", 0)
+            if bullets <= 2:
+                checks.append((
+                    "Bullet bank",
+                    False,
+                    f"only {bullets} bullet(s) — this looks like the example file. "
+                    "Load your own or batches will build almost nothing: "
+                    "python db/seeds/bootstrap_bullets.py <resume.docx>",
+                ))
+            elif bullets < 10:
+                checks.append((
+                    "Bullet bank",
+                    False,
+                    f"{bullets} bullets is thin; 10-30 gives the Tailor enough to "
+                    "cover a real job description",
+                ))
         except Exception as exc:
             checks.append(("Database reachable", False, str(exc)[:200]))
         finally:
