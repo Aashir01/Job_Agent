@@ -38,7 +38,12 @@ export function PackageDetail({
   const showEverything = tier === "marginal";
   const elig = pkg.eligibility;
   const answers = pkg.screening_answers?.answers ?? [];
-  const warnings = [...(pkg.warnings ?? []), ...(pkg.screening_answers?.warnings ?? [])];
+  // The Scribe's warnings are persisted twice — once on packages.warnings and
+  // again inside screening_answers — so a straight merge shows every one of
+  // them to the user twice, and keying a list by the warning text then collides.
+  const warnings = [
+    ...new Set([...(pkg.warnings ?? []), ...(pkg.screening_answers?.warnings ?? [])]),
+  ];
   const outreach = Object.entries(pkg.outreach_drafts ?? {});
 
   return (
@@ -157,8 +162,8 @@ export function PackageDetail({
         {warnings.length > 0 && (
           <Section title="Check before sending">
             <ul className="space-y-1 text-sm">
-              {warnings.map((warning) => (
-                <li key={warning} className="flex gap-2 text-standard">
+              {warnings.map((warning, index) => (
+                <li key={`${index}-${warning}`} className="flex gap-2 text-standard">
                   <Glyph tone="warn">!</Glyph>
                   <span>{warning}</span>
                 </li>

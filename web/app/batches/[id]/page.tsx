@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ApiError } from "@/components/ApiError";
 import { AutoRefresh } from "@/components/AutoRefresh";
 import { StatusBadge } from "@/components/BatchStatus";
+import { ResendDigest } from "@/components/ResendDigest";
 import { getBatch } from "@/lib/api";
 import { dateTime, elapsed, usd } from "@/lib/format";
 import type { RunFilters } from "@/lib/types";
@@ -66,6 +67,8 @@ export default async function BatchDetailPage({ params }: { params: Promise<{ id
             )}
           </p>
         </div>
+
+        <ResendDigest batchId={batch.id} delivered={stats.notifications} />
       </div>
 
       <section

@@ -240,3 +240,35 @@ def test_error_digest_is_never_suppressed_as_empty():
     digest = build_error_digest("Batch", "Supabase refused the connection")
     assert not digest.is_empty
     assert "Supabase refused" in digest.as_text()
+
+
+def test_jobs_get_a_deep_link_into_the_queue():
+    """Tapping a job on a phone should land on that package, not on a list."""
+    digest = Digest(
+        headline="1 ready",
+        jobs=[DigestJob("Senior AI Engineer", "Acme", 91, "fast_lane", package_id="pkg-1")],
+        dashboard_url="https://dash.example",
+    )
+    digest._link_jobs()
+    assert digest.jobs[0].review_url == "https://dash.example/?package=pkg-1"
+    assert "?package=pkg-1" in digest.as_telegram_html()
+    assert digest.as_payload()["jobs"][0]["review_url"].endswith("?package=pkg-1")
+
+
+def test_no_deep_link_without_a_dashboard_url():
+    digest = Digest(headline="1 ready",
+                    jobs=[DigestJob("Role", "Co", 80, "standard", package_id="pkg-1")])
+    digest._link_jobs()
+    assert digest.jobs[0].review_url == ""
+    assert "?package=" not in digest.as_text()
+
+
+async def test_the_batch_digest_carries_the_package_id(db):
+    db.tables["review_queue"] = [
+        {"id": "pkg-9", "status": "queued", "batch_id": "b1", "fit_score": 88,
+         "tier": "fast_lane", "title": "AI Engineer", "company_name": "Acme"}
+    ]
+    digest = await build_batch_digest(
+        db, {"packages_built": 1}, "b1", _settings(dashboard_url="https://d.example")
+    )
+    assert digest.jobs[0].package_id == "pkg-9"

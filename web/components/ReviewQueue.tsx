@@ -17,9 +17,22 @@ import { Toast } from "./Toast";
 
 const TIER_ORDER: Tier[] = ["fast_lane", "standard", "marginal"];
 
-export function ReviewQueue({ initial }: { initial: ReviewPackage[] }) {
+export function ReviewQueue({
+  initial,
+  focusPackageId,
+}: {
+  initial: ReviewPackage[];
+  /** From `?package=<id>` — a digest links straight to one package, so tapping
+   *  a job on a phone lands on it rather than on a list to search. */
+  focusPackageId?: string;
+}) {
   const [queue, setQueue] = useState(initial);
-  const [cursor, setCursor] = useState(0);
+  const [cursor, setCursor] = useState(() => {
+    const index = focusPackageId
+      ? initial.findIndex((row) => row.id === focusPackageId)
+      : -1;
+    return index >= 0 ? index : 0;
+  });
   const [awaitingReason, setAwaitingReason] = useState(false);
   const [editing, setEditing] = useState(false);
   const [toast, setToast] = useState<ActionResult | null>(null);

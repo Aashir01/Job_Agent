@@ -157,6 +157,8 @@ export interface BatchStats {
   llm_cost_usd?: number;
   llm_by_provider?: Record<string, number>;
   quota_exhausted?: boolean;
+  /** Channel → whether the digest reached it when the batch finished. */
+  notifications?: Record<string, boolean>;
   errors?: string[];
 }
 

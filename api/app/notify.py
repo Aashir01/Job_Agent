@@ -43,7 +43,9 @@ class DigestJob:
     tier: str
     track: str = ""
     location: str = ""
-    url: str = ""
+    url: str = ""                 # the posting itself — what you read
+    package_id: str = ""          # this package in the queue — where you act
+    review_url: str = ""
 
     @property
     def icon(self) -> str:
@@ -68,6 +70,15 @@ class Digest:
         return not self.jobs and not self.lines and not self.error
 
     # ── renderers ─────────────────────────────────────────────────────────
+    def _link_jobs(self) -> None:
+        """Give every job a deep link into the queue, once the dashboard URL is
+        known. Tapping a job on a phone should land on that exact package, not
+        on a list you then have to search."""
+        base = (self.dashboard_url or "").rstrip("/")
+        for job in self.jobs:
+            if base and job.package_id and not job.review_url:
+                job.review_url = f"{base}/?package={job.package_id}"
+
     def as_text(self, top_n: int = 8) -> str:
         """Plain text. The lowest common denominator, used by webhooks and email."""
         out = [self.headline, ""]
@@ -84,6 +95,8 @@ class Digest:
                     out.append(f"     {detail}")
                 if job.url:
                     out.append(f"     {job.url}")
+                if job.review_url:
+                    out.append(f"     review: {job.review_url}")
             if len(self.jobs) > top_n:
                 out.append(f"…and {len(self.jobs) - top_n} more in the queue")
         if self.error:
@@ -109,6 +122,9 @@ class Digest:
                     filter(None, [esc(job.company), esc(job.location),
                                   esc(job.track.replace("_", " "))])
                 )
+                if job.review_url:
+                    detail = f'{detail} · <a href="{esc(job.review_url)}">review</a>' if detail \
+                        else f'<a href="{esc(job.review_url)}">review</a>'
                 if detail:
                     out.append(f"<i>{detail}</i>")
             if len(self.jobs) > top_n:
@@ -181,7 +197,9 @@ class Digest:
             "jobs": [
                 {
                     "title": j.title, "company": j.company, "score": j.score,
-                    "tier": j.tier, "track": j.track, "location": j.location, "url": j.url,
+                    "tier": j.tier, "track": j.track, "location": j.location,
+                    "url": j.url, "package_id": j.package_id,
+                    "review_url": j.review_url or None,
                 }
                 for j in self.jobs[:top_n]
             ],
@@ -217,6 +235,7 @@ class Notifier:
             return []
 
         digest.dashboard_url = digest.dashboard_url or self.settings.dashboard_url
+        digest._link_jobs()
         owns = client is None
         client = client or httpx.AsyncClient(timeout=15.0)
         try:
@@ -342,6 +361,7 @@ async def build_batch_digest(
                     track=row.get("track") or "",
                     location=row.get("location_raw") or "",
                     url=row.get("source_url") or "",
+                    package_id=str(row.get("id") or ""),
                 )
             )
     except Exception as exc:

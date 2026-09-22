@@ -6,7 +6,12 @@ import { getQueue, getQuota, getStatsOverview } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
-export default async function ReviewPage() {
+export default async function ReviewPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ package?: string }>;
+}) {
+  const { package: focusPackageId } = await searchParams;
   const [queue, quota, stats] = await Promise.allSettled([
     getQueue(),
     getQuota(),
@@ -59,7 +64,7 @@ export default async function ReviewPage() {
 
       <RunControls />
 
-      <ReviewQueue initial={queue.value.packages} />
+      <ReviewQueue initial={queue.value.packages} focusPackageId={focusPackageId} />
     </div>
   );
 }
