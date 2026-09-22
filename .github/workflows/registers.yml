@@ -11,6 +11,13 @@ on:
 jobs:
   refresh:
     runs-on: ubuntu-latest
+    # The keys live in an Environment ("env"), and environment secrets are only
+    # readable by a job that claims that environment — without this line every
+    # `secrets.*` silently resolves to an empty string. Override the name with
+    # the repository variable SECRETS_ENVIRONMENT if you rename it; referencing
+    # an environment that does not exist creates an unprotected one, so the
+    # fallback is safe.
+    environment: ${{ vars.SECRETS_ENVIRONMENT || 'env' }}
     timeout-minutes: 15
     defaults:
       run:

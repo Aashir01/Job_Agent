@@ -190,8 +190,11 @@ python db/seeds/load.py --all
 
 ### 4. Turn the schedule on
 
-Add `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` and one LLM key as **repository
-secrets** (Settings → Secrets and variables → Actions). That is all the
+Add `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` and one LLM key under
+**Settings → Secrets and variables → Actions**. Repository secrets work as-is;
+environment secrets work too, so long as the environment is named `env` or the
+repository variable `SECRETS_ENVIRONMENT` names yours — and has no deployment
+protection rule, which would make every scheduled run wait for a click. That is all the
 twice-daily run needs — it executes inside the GitHub runner and talks to
 Supabase directly, so nothing has to be deployed for the schedule to work.
 

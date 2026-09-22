@@ -71,6 +71,7 @@ runs:
         {
           echo "### Configuration"
           echo
+          echo "Repository secrets, plus those of the environment this job claims."
           if [ "$count" -eq 0 ]; then
             echo "This job can see **no repository secrets at all**."
           else
@@ -106,7 +107,7 @@ runs:
           echo "> | Where you may have put it | Why it is invisible here |"
           echo "> |---|---|"
           echo "> | The **Variables** tab (same page) | Variables are a different store from secrets. |"
-          echo "> | **Environment** secrets | Only readable by a job that declares an environment. |"
+          echo "> | An **Environment** other than the one this job claims | These jobs claim the environment named by the repository variable SECRETS_ENVIRONMENT, defaulting to \`env\`. Secrets in a different environment are invisible. |"
           echo "> | **Dependabot** tab | A separate store; Actions never sees it. |"
           echo "> | **Codespaces** tab | Also separate. |"
           echo "> | Your **user/org** account | Needs this repository granted access. |"
