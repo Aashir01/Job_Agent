@@ -24,6 +24,21 @@ without opening the database.
 4. Check `/outreach/due` for follow-ups that have come due. The cadence is
    pre-approved; each body still needs your read.
 
+## Adding postings by hand
+
+LinkedIn and Indeed are never fetched server-side, so a posting you find there
+gets in through a file:
+
+```bash
+python -m app.cli import-urls linkedin.txt --dry-run   # parse and report only
+python -m app.cli import-urls linkedin.txt
+```
+
+One block per posting, starting at its URL, with optional `title:`, `company:`
+and `location:` lines ahead of the pasted description. Re-running is safe: the
+URL is unique, so a posting already stored is counted and skipped rather than
+duplicated, and Scout will not re-fetch it. The README has the file format.
+
 ## When something looks wrong
 
 **A workflow run fails within seconds.**

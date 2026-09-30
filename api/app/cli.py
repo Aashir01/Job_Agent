@@ -11,6 +11,7 @@ deployed for a run to work.
     python -m app.cli registers
     python -m app.cli notify-test
     python -m app.cli doctor
+    python -m app.cli import-urls linkedin.txt
 
 Every command writes a GitHub step summary when GITHUB_STEP_SUMMARY is set, so
 a run explains itself in the Actions UI without opening logs.
@@ -23,6 +24,7 @@ import json
 import logging
 import os
 import sys
+from pathlib import Path
 from typing import Any
 
 from .config import get_settings
@@ -277,12 +279,94 @@ async def cmd_doctor(args: argparse.Namespace) -> int:
     return 1 if required else 0
 
 
+async def cmd_import_urls(args: argparse.Namespace) -> int:
+    """Load job URLs the user collected by hand. Nothing is fetched."""
+    from .agents.scout.runner import Scout
+    from .import_jobs import build_jobs, is_thin, parse_postings
+
+    path = Path(args.file)
+    if not path.exists():
+        print(f"error: no such file: {path}", file=sys.stderr)
+        return 2
+    records, problems = parse_postings(path.read_text(encoding="utf-8"))
+    if not records:
+        print(f"error: no job URLs found in {path}", file=sys.stderr)
+        return 2
+
+    thin = sum(1 for record in records if is_thin(record))
+    undescribed = sum(1 for record in records if not record.get("description"))
+    jobs = build_jobs(records, args.source)
+
+    if args.dry_run:
+        summary(
+            "### Import (dry run) — nothing written\n\n"
+            + _table([(f"`{job.source_url}`", job.title) for job in jobs[:20]])
+        )
+        print(json.dumps(
+            {
+                "parsed": len(jobs),
+                "thin": thin,
+                "without_description": undescribed,
+                "source": args.source,
+                "dry_run": True,
+            },
+            indent=2,
+        ))
+        return 0
+
+    require_config()
+    settings = get_settings()
+    db = Database(settings)
+    try:
+        result = await Scout(db, settings).persist(jobs)
+        summary(
+            f"### Imported {result.kept} posting(s)\n\n"
+            + _table([
+                ("file", f"`{path}`"),
+                ("source label", args.source),
+                ("parsed", len(jobs)),
+                ("**imported**", f"**{result.kept}**"),
+                ("already stored", result.duplicates_url),
+                ("same role elsewhere", result.duplicates_hash + result.duplicates_embedding),
+                ("no description", undescribed),
+                ("no title/company", thin),
+            ])
+        )
+        if undescribed:
+            summary(
+                "> A posting with no description reaches the Analyst with nothing to "
+                "read. Paste the job text into the file so it can be scored."
+            )
+        for problem in problems[:5]:
+            summary(f"> ignored {problem}")
+
+        print(json.dumps(
+            {
+                "parsed": len(jobs),
+                "imported": result.kept,
+                "duplicates_url": result.duplicates_url,
+                "duplicates_hash": result.duplicates_hash,
+                "duplicates_embedding": result.duplicates_embedding,
+                "without_description": undescribed,
+                "thin": thin,
+                "ignored_lines": problems,
+                "job_ids": result.inserted_job_ids,
+            },
+            indent=2,
+            default=str,
+        ))
+        return 0
+    finally:
+        await db.aclose()
+
+
 COMMANDS = {
     "batch": cmd_batch,
     "chaser": cmd_chaser,
     "registers": cmd_registers,
     "notify-test": cmd_notify_test,
     "doctor": cmd_doctor,
+    "import-urls": cmd_import_urls,
 }
 
 
@@ -301,6 +385,13 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("registers", help="refresh the UK, NL and CA sponsor registers")
     sub.add_parser("notify-test", help="send a sample digest to every configured channel")
     sub.add_parser("doctor", help="report what is configured and reachable")
+
+    imp = sub.add_parser("import-urls", help="load job URLs you collected by hand")
+    imp.add_argument("file", help="a text file of postings (see the README)")
+    imp.add_argument("--source", default="linkedin",
+                     help="label stored on each imported job (default: linkedin)")
+    imp.add_argument("--dry-run", action="store_true",
+                     help="parse and report, but write nothing")
     return parser
 
 

@@ -237,14 +237,33 @@ class Scout:
             await self._mark_polled(sources, errors, result.by_source)
             return result
 
+        await self.persist(candidates, result)
+
+        await self._mark_polled(sources, errors, result.by_source)
+        return result
+
+    async def persist(
+        self, jobs: Sequence[RawJob], result: ScoutResult | None = None
+    ) -> ScoutResult:
+        """Dedupe against everything already stored, then insert.
+
+        No fetching and no filtering: the caller has already decided these are
+        wanted. Shared by the poll path and the manual importer, so a posting the
+        user pasted by hand is deduped and attached to a company by exactly the
+        same rules as one Scout discovered.
+        """
+        result = result if result is not None else ScoutResult(fetched=len(jobs))
+        if not jobs:
+            return result
+
         known_urls = await self._known(
-            "jobs", "source_url", [j.source_url for j in candidates]
+            "jobs", "source_url", [j.source_url for j in jobs]
         )
         known_hashes = await self._known(
-            "jobs", "dedupe_hash", [j.dedupe_hash for j in candidates]
+            "jobs", "dedupe_hash", [j.dedupe_hash for j in jobs]
         )
 
-        for job in candidates:
+        for job in jobs:
             if job.source_url in known_urls:
                 result.duplicates_url += 1
                 continue
@@ -285,7 +304,6 @@ class Scout:
             else:
                 result.duplicates_url += 1
 
-        await self._mark_polled(sources, errors, result.by_source)
         return result
 
     async def _known(self, table: str, column: str, values: list[str]) -> set[str]:

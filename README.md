@@ -44,7 +44,7 @@ You: /setup → Run   ──HTTP──▶ FastAPI on Render (one 256MB machine)
 | `api/app/agents/` | Scout, Analyst, Gatekeeper, Tailor, Scribe, Connector, Courier, Chaser |
 | `api/app/llm/` | Providers behind one interface: OpenRouter, Gemini, Groq, and the router that budgets and logs every call |
 | `api/app/routes/` | The HTTP surface, including the approval gate and the resume download |
-| `api/tests/` | 198 tests, mostly about the things that must never happen |
+| `api/tests/` | 207 tests, mostly about the things that must never happen |
 | `web/` | Next.js review dashboard, keyboard-driven |
 | `extension/` | MV3 extension and the tests that enforce its limits |
 
@@ -266,6 +266,39 @@ python -m app.cli doctor        # what is configured, and does the database answ
 curl -X POST "$API_URL/batch/run?kind=manual&wait=true" -H "X-Agent-Key: $AGENT_KEY"
 ```
 
+### Importing postings you found yourself
+
+LinkedIn and Indeed are never fetched server-side — their terms forbid automated
+access, and the account doing the fetching is your own, the one your applications
+are sent from. So the ones you find by hand go in through a file:
+
+```bash
+python -m app.cli import-urls linkedin.txt --dry-run   # see what it would add
+python -m app.cli import-urls linkedin.txt
+```
+
+One posting per block, and a block starts at the URL. `title:`, `company:` and
+`location:` are read only *before* the description; every line after them is the
+posting text, verbatim:
+
+```
+# comments and blank lines are ignored
+https://www.linkedin.com/jobs/view/4123456789
+title: Senior AI Engineer
+company: Acme, Inc.
+location: Remote — EU
+
+<Paste the job description here.>
+```
+
+A URL on its own still imports — the title is derived from it, so the posting is
+never lost and never collides with the next one — but a posting with no
+description reaches the Analyst with nothing to read, and the run tells you how
+many of those it saw. Imported rows are ordinary `jobs` rows: Scout skips them
+afterwards, and the next batch analyses, scores and packages them like anything
+it discovered itself. Re-running the same file adds nothing, because
+`source_url` is unique.
+
 ### The Setup page
 
 Everything the agents hunt with is set at `/setup`, not in a seed file or an
@@ -360,13 +393,13 @@ running out of quota is diagnosable rather than mysterious.
   evidence.
 - The extension never clicks a site's Submit button. `extension/test/` fails
   the build if a `.click()` ever appears in it.
-- LinkedIn and Indeed are discovery only, harvested from pages you are already
-  looking at. Nothing is scraped server-side.
+- LinkedIn and Indeed are discovery only: harvested from pages you are already
+  looking at, or loaded from a file you paste in. Nothing is scraped server-side.
 
 ## Tests
 
 ```bash
-cd api && python -m pytest          # 198 tests
+cd api && python -m pytest          # 207 tests
 cd web && npm run typecheck && npm run build
 cd extension && npm test            # the invariants above, enforced
 ```

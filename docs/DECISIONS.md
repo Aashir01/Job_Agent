@@ -28,8 +28,8 @@ system makes. Vector search goes through SQL functions (`match_jobs`,
 ## The daily caps live in Postgres, not in Python
 
 `bump_daily_counter` increments and checks in one statement and returns `-1`
-when the cap would be exceeded. An in-process counter would let a manual batch
-and the cron batch each believe they had the full allowance, and §10's caps
+when the cap would be exceeded. An in-process counter would let two concurrent
+batches each believe they had the full allowance, and §10's caps
 exist to protect deliverability — the one thing you cannot undo.
 
 ## Traceability is a checker, not a prompt
@@ -64,6 +64,19 @@ Partly terms of service, mostly that an autofilled application submitted
 unread is worse than no application. The restriction is enforced by a test that
 fails the build if `.click()` appears anywhere in the extension source, and the
 service worker overwrites `autosubmit` to false regardless of what the API sent.
+
+## LinkedIn is imported, never scraped
+
+A server-side LinkedIn scraper is the obvious feature and the wrong one.
+LinkedIn's terms forbid automated access; enforcement is a ban on the account
+doing the fetching, which is the same account every tracked application is sent
+from; and there is no self-serve API for reading job listings, only partner
+programs for posting them. So the ways in stay inside the session the user
+already has: the extension harvests pages they are already looking at, and
+`import-urls` reads a file of postings they collected by hand. Both produce
+ordinary `jobs` rows — Scout skips them because the URL is stored, and the
+Analyst, Gatekeeper, Tailor and Scribe treat them exactly like something Scout
+discovered itself.
 
 ## The score is explainable, not learned
 
