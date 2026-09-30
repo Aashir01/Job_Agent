@@ -44,7 +44,7 @@ GitHub Actions cron ──HTTP──▶ FastAPI on Fly.io (one 256MB machine)
 | `api/app/agents/` | Scout, Analyst, Gatekeeper, Tailor, Scribe, Connector, Courier, Chaser |
 | `api/app/llm/` | Providers behind one interface: OpenRouter, Gemini, Groq, and the router that budgets and logs every call |
 | `api/app/routes/` | The HTTP surface, including the approval gate and the resume download |
-| `api/tests/` | 163 tests, mostly about the things that must never happen |
+| `api/tests/` | 198 tests, mostly about the things that must never happen |
 | `web/` | Next.js review dashboard, keyboard-driven |
 | `extension/` | MV3 extension and the tests that enforce its limits |
 
@@ -364,7 +364,7 @@ running out of quota is diagnosable rather than mysterious.
 ## Tests
 
 ```bash
-cd api && python -m pytest          # 163 tests
+cd api && python -m pytest          # 198 tests
 cd web && npm run typecheck && npm run build
 cd extension && npm test            # the invariants above, enforced
 ```
