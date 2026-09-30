@@ -78,6 +78,15 @@ class Settings(BaseSettings):
     adzuna_app_id: str = ""
     adzuna_app_key: str = ""
 
+    # ── Apify (optional extra source) ─────────────────────────────────────
+    # Runs any Apify actor and treats its dataset as a job source. Point it only
+    # at sites whose terms permit automated access — LinkedIn and Indeed stay
+    # excluded (docs/DECISIONS.md). Inert until the key and the actor id are set.
+    apify_api_key: str = ""
+    apify_actor_id: str = ""          # "username~actor-name", or the actor id
+    apify_input: str = "{}"           # the actor's input, as a JSON object
+    apify_max_items: int = 200
+
     # ── Sponsorship register URLs (§6). Overridable: the Home Office
     #    republishes under a dated filename every few weeks.
     register_url_uk: str = ""

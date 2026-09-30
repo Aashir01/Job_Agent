@@ -16,6 +16,7 @@ from __future__ import annotations
 from typing import Callable
 
 from ...config import Settings
+from .apify import build as build_apify
 from .ats import ATS_SOURCES
 from .base import Source
 from .boards import (
@@ -50,6 +51,9 @@ AGGREGATORS: dict[str, Callable[[Settings, list[str]], Source]] = {
         settings.adzuna_app_key,
         what=", ".join(keywords) or "python engineer",
     ),
+    # Whatever actor APIFY_ACTOR_ID names — the actor, not this repo, decides
+    # what it fetches. Inert until the key and the actor id are both set.
+    "apify": lambda settings, keywords: build_apify(settings, keywords),
 }
 
 PLATFORM_IDS: tuple[str, ...] = ATS_PLATFORMS + tuple(AGGREGATORS)
@@ -67,6 +71,7 @@ LABELS: dict[str, str] = {
     "weworkremotely": "WeWorkRemotely",
     "hn_hiring": 'Hacker News "Who is hiring"',
     "adzuna": "Adzuna (needs an API key)",
+    "apify": "Apify actor (needs an API key)",
 }
 
 # LinkedIn and Indeed are deliberately absent: they are harvested by the Chrome

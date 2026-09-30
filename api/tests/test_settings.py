@@ -56,7 +56,7 @@ def test_sources_lists_every_platform_and_the_seeded_boards(client):
         {"id": "b1", "kind": "greenhouse", "slug": "stripe", "company_name": "Stripe", "enabled": True}
     ]
     body = client.get("/sources", headers=AUTH).json()
-    assert len(body["platforms"]) == 12
+    assert len(body["platforms"]) == 13
     assert {"id", "label", "kind"} <= set(body["platforms"][0])
     assert body["boards"][0]["slug"] == "stripe"
     # LinkedIn and Indeed are extension-only and must never appear as fetchable.
