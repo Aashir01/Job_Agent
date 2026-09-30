@@ -125,19 +125,23 @@ async def main() -> int:
 
     db = Database(settings)
     try:
+        # Never fall back to the .example files. They document the shape of a
+        # real seed; loading one into a live database is how a fictional
+        # candidate reaches real applications, which is what the example bank
+        # silently did before. Missing means missing.
         if args.profile or args.all:
             path = args.profile or HERE / "profile.json"
             if not path.exists():
-                path = HERE / "profile.example.json"
-                print(f"  (no profile.json — using {path.name})")
-            await load_profile(db, path)
+                print(f"  no {path.name} to load (the template is {path.stem}.example.json)")
+            else:
+                await load_profile(db, path)
 
         if args.bullets or args.all:
             path = args.bullets or HERE / "bullets.json"
             if not path.exists():
-                path = HERE / "bullets.example.json"
-                print(f"  (no bullets.json — using {path.name})")
-            await load_bullets(db, path, replace=args.replace_bullets)
+                print(f"  no {path.name} to load (the template is {path.stem}.example.json)")
+            else:
+                await load_bullets(db, path, replace=args.replace_bullets)
 
         if args.boards or args.all:
             await load_boards(db, HERE / "company_boards.json")
