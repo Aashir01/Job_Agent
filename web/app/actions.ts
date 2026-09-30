@@ -193,7 +193,7 @@ export async function saveRunSettingsAction(input: {
   try {
     await updateRunSettings(input);
     revalidatePath("/setup");
-    return { ok: true, message: "Saved. The scheduled batches will use this too." };
+    return { ok: true, message: "Saved. Every future run will use this too." };
   } catch (error) {
     return { ok: false, message: describe(error) };
   }

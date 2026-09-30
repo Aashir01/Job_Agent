@@ -1,12 +1,12 @@
 """Run the pipeline without an HTTP server.
 
-The scheduled workflows used to POST to a deployed API, which meant the cron
-could not run at all until something was hosted — and every scheduled run
-failed in six seconds on a missing ``API_URL``. GitHub Actions already has the
-compute the batch needs, so it runs the same code in-process against Supabase
-and nothing has to be deployed for the schedule to work.
+A workflow run used to POST to a deployed API, which meant it could not run at
+all until something was hosted — and every run failed in six seconds on a
+missing ``API_URL``. GitHub Actions already has the compute the batch needs, so
+it runs the same code in-process against Supabase and nothing has to be
+deployed for a run to work.
 
-    python -m app.cli batch --kind scheduled
+    python -m app.cli batch --kind manual
     python -m app.cli chaser
     python -m app.cli registers
     python -m app.cli notify-test

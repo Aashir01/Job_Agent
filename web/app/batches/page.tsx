@@ -103,8 +103,8 @@ export default async function BatchesPage() {
                   <td colSpan={9} className="px-4 py-16 text-center">
                     <p className="text-sm text-fg">No batches yet.</p>
                     <p className="mx-auto mt-1 max-w-sm text-xs text-muted">
-                      Use Run agents on the review queue, or wait for the 02:00 and 14:00 UTC
-                      cron. Every run lands here.
+                      Use Run agents on the review queue, or Save and run on /setup.
+                      Every run lands here.
                     </p>
                   </td>
                 </tr>

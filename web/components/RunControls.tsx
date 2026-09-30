@@ -64,7 +64,7 @@ export function RunControls() {
     [router],
   );
 
-  // A batch may already be running when the page loads (the cron, or another
+  // A batch may already be running when the page loads (a workflow, or another
   // tab started one) — pick it up instead of offering a second run.
   useEffect(() => {
     let cancelled = false;

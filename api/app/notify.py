@@ -7,7 +7,7 @@ are configured.
 
 Channels are independent and best-effort: one failing never blocks another, and
 a failed delivery never fails the batch. A run that found nothing says nothing
-unless ``notify_on_empty`` is set — a digest that arrives twice a day saying
+unless ``notify_on_empty`` is set — a digest that arrives on every run saying
 "0 new" trains you to ignore the ones that matter.
 
 Telegram is the recommended default. WhatsApp has no free first-party API, so

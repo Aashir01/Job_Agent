@@ -1,22 +1,19 @@
-# §4 batch cadence.
+# §4 batch — manual runs only, by design.
 #
-#   02:00 UTC (07:00 PKT) — overnight US postings, plus anything EU posted late.
-#   14:00 UTC (19:00 PKT) — EU/UK roles posted that same business morning, so
-#                           they reach the queue inside the 72-hour window where
-#                           response rates are highest. This is the important one.
+# There is no cron. A batch starts only when you ask for one:
+#   - from the dashboard: "Save and run" → POST /batch/run on the deployed API
+#     (this is the normal path), or
+#   - from the Actions tab: "Run workflow" below.
+# Nothing hunts while you are not looking, and no minutes are spent on a schedule
+# you did not ask for.
 #
 # The batch runs here, in the runner, against Supabase directly. It used to POST
-# to a deployed API, which meant the schedule could not work until something was
-# hosted — every scheduled run failed in six seconds on a missing API_URL. The
-# runner already has the compute, so nothing needs deploying for the cron to work.
-#
-# §8 budget: 2000 GH Actions minutes a month, spent as 2 runs of a few minutes.
+# to a deployed API, which meant the run could not work until something was
+# hosted — every run failed in six seconds on a missing API_URL. The runner
+# already has the compute, so nothing needs deploying for the run to work.
 name: batch
 
 on:
-  schedule:
-    - cron: "0 2 * * *"
-    - cron: "0 14 * * *"
   workflow_dispatch:
     inputs:
       kind:

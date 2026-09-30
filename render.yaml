@@ -3,9 +3,9 @@
 #   https://dashboard.render.com/blueprint/new  →  point it at this repository.
 #
 # The free instance sleeps after ~15 minutes idle and takes a few seconds to
-# wake, which is fine: the dashboard is the only thing that calls it, and the
-# scheduled batches do not — they run inside GitHub Actions and talk to
-# Supabase directly, so the schedule keeps working while this is asleep.
+# wake, which is fine: the dashboard is the only thing that calls it, and a
+# workflow run does not — those run inside GitHub Actions and talk to Supabase
+# directly, so they keep working while this is asleep.
 services:
   - type: web
     name: job-agent-api

@@ -95,7 +95,7 @@ export function NotificationSettings({ status }: { status: NotifyStatus | null }
       </ul>
 
       <p className="mt-3 text-2xs leading-relaxed text-faint">
-        These are set where the code runs — repository secrets for the scheduled runs, and
+        These are set where the code runs — repository secrets for the GitHub runs, and
         the host&rsquo;s environment for this dashboard&rsquo;s API.{" "}
         {!status.notify_on_empty && "A run that finds nothing stays quiet. "}
         See <code className="font-mono text-faint">docs/DEPLOY.md</code>.

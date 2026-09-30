@@ -1,14 +1,18 @@
 # Runbook
 
-## The two batches
+## Running a batch
 
-| UTC | PKT | Why it exists |
+There is no cron. A batch runs only when you ask for one, and there are two
+ways to ask:
+
+| From | How | Notes |
 |---|---|---|
-| 02:00 | 07:00 | Overnight US postings, plus anything EU posted late the day before |
-| 14:00 | 19:00 | **The important one.** EU/UK roles posted that same business morning reach your queue the same day, inside the 72-hour window where response rates are highest |
+| The dashboard | **Save and run** on `/setup` | The normal path. Needs the API deployed (Render/Fly). |
+| GitHub Actions | **Actions → batch → Run workflow** | Runs in the runner. No deployment needed. |
 
-Both are `.github/workflows/batch.yml`. The job summary carries the counts, so
-a batch that went wrong is visible without opening the database.
+Both drive the same code path; the Actions one is `.github/workflows/batch.yml`.
+The job summary carries the counts, so a batch that went wrong is visible
+without opening the database.
 
 ## Daily loop
 
@@ -22,21 +26,16 @@ a batch that went wrong is visible without opening the database.
 
 ## When something looks wrong
 
-**Every scheduled run fails within seconds.**
-`batch`, `chaser` and `refresh-sponsor-registers` reach the deployed API with
-`API_URL` and `AGENT_KEY`, which they read from repository secrets. With the
-secrets unset the guard at the top of each job exits in about two seconds —
-long before any network call — and the run annotation reads
-`API_URL and AGENT_KEY repository secrets must be set`. Set them once, using
-the same values the API machine has:
+**A workflow run fails within seconds.**
+`batch`, `chaser` and `refresh-sponsor-registers` run in the GitHub runner
+against Supabase, so they need `SUPABASE_URL` and `SUPABASE_SERVICE_KEY` (and
+one LLM key) in repository secrets. With those unset the preflight guard exits
+in about two seconds — long before any network call — and the run annotation
+names what is missing. Add them under **Settings → Secrets and variables →
+Actions**.
 
-```bash
-gh secret set API_URL --body "https://your-app.fly.dev"
-gh secret set AGENT_KEY --body "<the same AGENT_KEY the API runs with>"
-```
-
-`ci` needs no secrets and passes on its own, so a green `ci` beside red
-scheduled runs is this and not a code failure.
+`ci` needs no secrets and passes on its own, so a green `ci` beside a red
+`batch` is a missing secret and not a code failure.
 
 **Everything in a package mentions a company I never worked for.**
 The database is still holding the `.example` seed, so the agents are writing
@@ -133,8 +132,9 @@ silently degrade.
 
 ## Weekly
 
-- `.github/workflows/registers.yml` refreshes UK, NL and CA on Mondays. Check
-  `register_refreshes` afterwards.
+- Refresh the sponsorship registers (the `refresh-sponsor-registers` workflow, or
+  `python -m app.cli registers`). There is no cron — run it when a register looks
+  stale, and check `register_refreshes` afterwards.
 - Skim `decisions`. It is what the scorer learns from, and a run of rejections
   for one reason usually means a rule needs changing, not a nudge.
 
@@ -153,7 +153,7 @@ silently degrade.
 | Stop all outbound mail | `MAX_OUTBOUND_EMAILS_PER_DAY=0` |
 | Stop all submissions | `MAX_EXTENSION_SUBMITS_PER_DAY=0` |
 | Stop discovery, keep processing | `POST /batch/run?skip_scout=true` |
-| Stop everything | Disable both workflows; nothing else initiates work |
+| Stop everything | Do nothing — no run starts on a schedule. Disabling the workflows also stops the manual ones |
 
 Nothing in the system submits on a timer. If the dashboard is closed, nothing
 goes out.

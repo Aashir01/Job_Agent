@@ -10,7 +10,7 @@ Chrome and VS Code.
 
 ## What it does
 
-Twice a day it discovers postings, reads them, throws away the ones you cannot
+On demand it discovers postings, reads them, throws away the ones you cannot
 actually apply to, and builds a complete application package for the rest —
 tailored resume, cover letter, drafted screening answers, and outreach notes.
 Then it stops and waits for you.
@@ -20,8 +20,8 @@ tiered: a fast-lane package should take ten seconds to clear, a marginal one
 two or three minutes.
 
 ```
-GitHub Actions cron ──HTTP──▶ FastAPI on Fly.io (one 256MB machine)
-   02:00 / 14:00 UTC             Scout → Analyst → Gatekeeper
+You: /setup → Run   ──HTTP──▶ FastAPI on Render (one 256MB machine)
+   on demand, manual             Scout → Analyst → Gatekeeper
                                      → Tailor → Scribe → Connector
                                      ↓
                               Supabase (Postgres + pgvector + storage)
@@ -188,15 +188,17 @@ cp db/seeds/profile.example.json db/seeds/profile.json && $EDITOR db/seeds/profi
 python db/seeds/load.py --all
 ```
 
-### 4. Turn the schedule on
+### 4. Give the runner its secrets
 
 Add `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` and one LLM key under
 **Settings → Secrets and variables → Actions**. Repository secrets work as-is;
 environment secrets work too, so long as the environment is named `env` or the
-repository variable `SECRETS_ENVIRONMENT` names yours — and has no deployment
-protection rule, which would make every scheduled run wait for a click. That is all the
-twice-daily run needs — it executes inside the GitHub runner and talks to
-Supabase directly, so nothing has to be deployed for the schedule to work.
+repository variable `SECRETS_ENVIRONMENT` names yours.
+
+There is no cron and nothing ever runs on its own. A batch starts only when you
+ask for one — **Save and run** on the dashboard's `/setup` page, or **Actions →
+batch → Run workflow** — and it executes inside the GitHub runner, talking to
+Supabase directly, so nothing has to be deployed for a run to work.
 
 Then **Actions → doctor → Run workflow**. It changes nothing; it reports which
 secrets the workflows can see, whether Supabase answers, and what is seeded.
@@ -209,7 +211,7 @@ an empty string with no warning.
 
 ### 5. Get told what it found
 
-A run that quietly fills a queue at 02:00 UTC is worth nothing if you have to
+A run that fills a queue and is then forgotten is worth nothing if you have to
 remember to look, so every run pushes a digest — what was built, the top
 matches with scores and links, and a link back to the queue.
 
@@ -252,7 +254,7 @@ cd api && python -m venv .venv && .venv/bin/pip install -r requirements.txt
 # dashboard locally — needs API_URL and AGENT_KEY in web/.env.local
 cd web && npm install && npm run dev
 
-# run a batch with no server at all — the same code path the cron uses
+# run a batch with no server at all — the same code path a dashboard run uses
 cd api && python -m app.cli batch --kind manual
 python -m app.cli batch --kind manual --skip-scout   # process stored jobs only
 python -m app.cli chaser        # queue follow-ups, detect replies
@@ -285,7 +287,7 @@ return, and the button that starts a run with all of it.
   than a mismatch.
 - **Run** — *Save and run* persists the choices and starts the batch in one
   call, so a run can never go out with a configuration you did not just
-  confirm. The scheduled batches read the same row, so the cron inherits it.
+  confirm. Every run reads the same row, so a later run inherits it.
 
 An empty platform selection means *all platforms*, so an install that never
 opens this page behaves exactly as it did before it existed.

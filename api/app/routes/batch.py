@@ -1,4 +1,4 @@
-"""Batch trigger and history. Called by the GitHub Actions cron (§3, §4)."""
+"""Batch trigger and history. The dashboard calls it to start a run (§3, §4)."""
 from __future__ import annotations
 
 import logging
@@ -27,8 +27,8 @@ async def run_batch(
     db: Database = Depends(get_db),
 ) -> dict:
     # A body from the run console is saved *before* the run starts, so the same
-    # choices also govern the scheduled batches: the cron reads the same row.
-    # The cron itself sends no body and keeps using whatever was last saved.
+    # choices govern every later run: each run reads the same row.
+    # A run triggered with no body keeps using whatever was last saved.
     saved = None
     if payload:
         current = await load_run_settings(db)
@@ -58,7 +58,7 @@ async def run_batch(
             "settings": saved,
         }
 
-    # The cron job should not hold an HTTP connection for eight minutes.
+    # A run should not hold an HTTP connection for eight minutes.
     background.add_task(runner.run, kind, skip_scout)
     return {"started": True, "completed": False, "kind": kind, "settings": saved}
 

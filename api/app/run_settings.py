@@ -1,8 +1,8 @@
 """The run console's persisted configuration.
 
 One row: which platforms to poll, and the filters applied to what they return.
-Both the dashboard and the scheduled batches read it, so what the user last
-chose in the UI is what the 02:00 and 14:00 UTC runs use.
+Every run reads it, so what the user last chose in the UI is what the next run
+uses.
 
 Kept deliberately tolerant. The row may not exist (nothing has been saved yet),
 and the table may not exist either (migration 0005 not run) — neither is an

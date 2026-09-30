@@ -1,7 +1,7 @@
 """Machine authentication for the API.
 
 One shared secret, compared in constant time. The dashboard's server actions
-and the GitHub Actions cron both carry it; the browser never sees it.
+and the GitHub Actions runs both carry it; the browser never sees it.
 """
 from __future__ import annotations
 

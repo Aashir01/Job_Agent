@@ -224,7 +224,7 @@ export function updateRunSettings(input: {
   return call(`/run-settings`, { method: "PATCH", body: JSON.stringify(input) });
 }
 
-/** Saves the console's choices and starts the batch. The cron reads the same row. */
+/** Saves the console's choices and starts the batch. Every run reads the same row. */
 export function runConfiguredBatch(input: {
   platforms?: string[];
   filters?: RunFilters;

@@ -1,17 +1,17 @@
 # Getting it running
 
-Three pieces, all on free tiers. **Only the first is required** — the schedule
-runs and messages your phone without any hosting at all.
+Three pieces, all on free tiers. **Only the first is required** — a run happens
+on demand and messages your phone without any hosting at all.
 
 | # | Piece | Where | Needed for |
 |---|---|---|---|
-| 1 | Database + the twice-daily run | Supabase + GitHub Actions | Everything. Jobs get found, scored and packaged, and you get a message. |
+| 1 | Database + on-demand runs | Supabase + GitHub Actions | Everything. Jobs get found, scored and packaged, and you get a message. |
 | 2 | API | Render free tier | The dashboard, the extension |
 | 3 | Dashboard | Vercel hobby | Reviewing and approving in a browser |
 
 ---
 
-## 1. Database and the scheduled run
+## 1. Database and runs on demand
 
 ### 1a. Supabase
 
@@ -37,14 +37,14 @@ Any one of these is enough:
 **Settings → Secrets and variables → Actions.** Either tab works:
 
 - **Repository secrets** — simplest, nothing else to configure.
-- **Environment secrets** — the scheduled workflows claim the environment named
+- **Environment secrets** — the workflows claim the environment named
   by the repository variable `SECRETS_ENVIRONMENT`, defaulting to **`env`**. If
   your environment has a different name, set that variable.
 
   > Check **Settings → Environments → your environment → Deployment protection
   > rules** and make sure there are **no required reviewers and no wait timer**.
-  > A protected environment makes every scheduled run sit waiting for a human
-  > click, which defeats the point of a cron.
+  > A protected environment makes a run sit waiting for a human click before it
+  > starts.
 
 | Secret | Required | What |
 |---|---|---|
@@ -113,7 +113,7 @@ Needed only for the dashboard and the extension.
    Vercel URL from step 3.
 
 The free instance sleeps after ~15 minutes idle and takes a few seconds to wake.
-That does not affect the schedule, which never touches it.
+That does not affect a run, which never touches it.
 
 > Fly.io (`api/fly.toml`) and any Procfile platform work too. Render is
 > suggested because its free tier needs no card.
@@ -220,7 +220,7 @@ misconfiguration shows up as a summary table rather than a stack trace.
 |---|---|
 | Workflow fails in seconds | `SUPABASE_URL` / `SUPABASE_SERVICE_KEY` not set |
 | "I added the secrets and it still says unset" | Most likely an Environment whose name is not `env` (set `SECRETS_ENVIRONMENT`), or the Variables tab / Dependabot / Codespaces, or another repository. Run **doctor** — it lists what the job can actually see. |
-| Scheduled runs sit "waiting" and never start | The environment holding the secrets has a deployment protection rule. Remove the required reviewer. |
+| A run sits "waiting" and never starts | The environment holding the secrets has a deployment protection rule. Remove the required reviewer. |
 | A secret name is right but still empty | Names are case-sensitive; a trailing space in the name creates a different secret |
 | Runs fine, queue stays empty | Empty bullet bank, or filters too narrow — see the batch detail page |
 | Digest never arrives | Never messaged the bot first (Telegram), or the run genuinely found nothing and `NOTIFY_ON_EMPTY` is off |

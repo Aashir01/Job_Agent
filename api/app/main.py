@@ -1,7 +1,7 @@
 """FastAPI app — the whole pipeline runtime (§3).
 
-One 256MB Fly machine runs every agent. The only things outside it are the
-GitHub Actions cron that pokes /batch/run, Supabase, the Vercel dashboard and
+One 256MB machine runs every agent. The only things outside it are the
+GitHub Actions runs that drive the pipeline, Supabase, the Vercel dashboard and
 the Chrome extension.
 """
 from __future__ import annotations

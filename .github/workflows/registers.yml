@@ -1,11 +1,10 @@
-# §6: the sponsorship registers the Gatekeeper cross-references are refreshed
-# weekly. A stale register still kills correctly; an empty one passes
+# §6: the sponsorship registers the Gatekeeper cross-references. Run this from
+# the Actions tab ("Run workflow") whenever you want them refreshed — there is
+# no cron. A stale register still kills correctly; an empty one passes
 # everything, so a failed refresh keeps the previous rows and never fails the run.
 name: refresh-sponsor-registers
 
 on:
-  schedule:
-    - cron: "0 5 * * 1"   # Mondays, 05:00 UTC
   workflow_dispatch:
 
 jobs:

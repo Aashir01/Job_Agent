@@ -1,17 +1,13 @@
-# §6 chaser cadence.
+# §6 chaser — manual runs only, by design.
 #
-#   06:30 / 18:30 UTC — after the 02:00 / 14:00 batches, so follow-ups drafted
-#   from this morning's submissions are due before the evening review, and
-#   replies landed during the US business day are picked up overnight.
+# There is no cron. Run it from the Actions tab ("Run workflow"), or from the
+# dashboard's /outreach page, whenever you want follow-ups queued.
 #
 # The chaser only *queues* follow-ups and polls Gmail. Nothing is sent until a
 # human approves the body on the dashboard's /outreach page.
 name: chaser
 
 on:
-  schedule:
-    - cron: "30 6 * * *"
-    - cron: "30 18 * * *"
   workflow_dispatch:
 
 concurrency:

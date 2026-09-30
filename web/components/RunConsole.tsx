@@ -31,8 +31,8 @@ async function fetchLatest(): Promise<BatchRow | null> {
  * The console: pick the platforms and filters, then run the agents with them.
  *
  * Saving and starting are one call, so a run can never go out with a
- * configuration the user did not just confirm. The cron reads the same row, so
- * the scheduled batches inherit whatever is saved here.
+ * configuration the user did not just confirm. Every run reads the same row, so
+ * a later run inherits whatever is saved here.
  */
 export function RunConsole({
   platforms,
@@ -71,7 +71,7 @@ export function RunConsole({
     [router],
   );
 
-  // Pick up a batch that is already running (the cron, or another tab).
+  // Pick up a batch that is already running (another tab, or a workflow).
   useEffect(() => {
     let cancelled = false;
     void fetchLatest().then((latest) => {
