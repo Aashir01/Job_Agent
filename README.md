@@ -266,6 +266,24 @@ python -m app.cli doctor        # what is configured, and does the database answ
 curl -X POST "$API_URL/batch/run?kind=manual&wait=true" -H "X-Agent-Key: $AGENT_KEY"
 ```
 
+### Confirming it is up
+
+The API listens on `http://localhost:8000` and the dashboard on
+`http://localhost:3000`. Before trusting either:
+
+```bash
+curl -s localhost:8000/health
+# {"ok":true,"environment":"dev","database_configured":true,
+#  "llm_configured":true,"embedding_provider":"hashing","time":"..."}
+```
+
+`database_configured` and `llm_configured` are the two that matter: with either
+false the API still starts and then fails the first real call — a `503` for the
+database, a `429` for a missing or spent LLM budget. `GET /docs` serves the
+generated reference for every route. The dashboard reaches the API from its
+server actions, so if the two disagree about `AGENT_KEY` it says so on every
+page rather than half-working.
+
 ### Importing postings you found yourself
 
 LinkedIn and Indeed are never fetched server-side — their terms forbid automated
@@ -375,7 +393,7 @@ order is the other way a batch comes back empty, however healthy the boards are.
 
 ### Windows
 
-Two environment details bite on Windows:
+A few details bite on Windows:
 
 ```powershell
 # `next dev` fails to compile Tailwind when NODE_ENV=production is inherited
@@ -384,10 +402,13 @@ $env:NODE_ENV = "development"; npm run dev
 # the same variable makes `npm install` silently skip devDependencies,
 # so tsc/tailwind/@types never get installed
 npm install --include=dev
+
+# a venv's executables are under Scripts\, not bin/ as the POSIX commands assume
+.venv\Scripts\python.exe -m uvicorn app.main:app --reload
 ```
 
-Set them per-shell rather than globally. Nothing else in the repo is
-platform-specific.
+Set the environment variables per-shell rather than globally. Nothing else in the
+repo is platform-specific.
 
 ## Budget
 
