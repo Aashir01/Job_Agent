@@ -368,6 +368,12 @@ Seven tabs, and one job between them: keep you in the loop without making you th
 pipeline. Everything the agents produce is visible here, and nothing leaves
 without a click.
 
+![The console end to end — review queue, All jobs, batches, applications, setup](docs/media/walkthrough.gif)
+
+*A 23-second pass over the console. The full-quality recording is at
+[`docs/media/walkthrough.webm`](docs/media/walkthrough.webm) — GitHub will not
+play a committed `.webm` inline, which is why the GIF is above.*
+
 | Tab | Route | For |
 |---|---|---|
 | **Review** | `/` | The human gate: approve, edit or reject a drafted package |
@@ -379,6 +385,8 @@ without a click.
 | **Setup** | `/setup` | Profile, platforms, filters, and the button that runs it |
 
 ### Review (`/`)
+
+![Review queue — the human gate](docs/media/01-review.png)
 
 The queue on the left is ordered by tier, then score. Selecting a row opens the
 package: fit score and rationale, the eligibility verdict with its evidence and
@@ -406,6 +414,8 @@ tapping a job on a phone lands on the job rather than a list to search.
 
 ### All jobs (`/jobs`)
 
+![All jobs — every stored posting, filterable](docs/media/02-all-jobs.png)
+
 The review queue can only show what survived the Gatekeeper and scored well
 enough to be packaged. This shows everything Scout **stored**, including what it
 threw away.
@@ -423,12 +433,16 @@ never stored at all, it is a board that has gone quiet.
 
 ### Outreach (`/outreach`)
 
+![Outreach — follow-ups that have come due](docs/media/03-outreach.png)
+
 Follow-ups whose due date has passed and that are neither sent nor approved. The
 cadence (day 3, day 10) is pre-approved; this is the per-send *content* approval,
 and a body you have not read never goes out. Editing the body here is the normal
 case — the draft is a starting point, not a decision.
 
 ### Applications (`/applications`)
+
+![Applications — what was submitted, and the funnel](docs/media/04-applications.png)
 
 Every application with its package (tier, fit score) and its job (title, company,
 link, track), plus a funnel count per status:
@@ -440,6 +454,8 @@ Status comes from the Chaser polling Gmail for replies. When one lands, an
 interview dossier is generated and served at `GET /applications/{id}/dossier`.
 
 ### Batches (`/batches`)
+
+![Batches — every run, what it found and killed](docs/media/05-batches.png)
 
 Every run with its kind, status, packages built, killed by the Gatekeeper, killed
 by score, LLM calls, cost and duration — and a detail page with the per-agent LLM
@@ -455,6 +471,8 @@ empty, however healthy the boards are.
 
 ### Extension (`/extension`)
 
+![Extension — the fill queue for your own browser session](docs/media/06-extension.png)
+
 The fill queue: approved packages that cannot be submitted by API and have to be
 filled into a career page inside your own browser session.
 
@@ -466,6 +484,8 @@ submit itself. Marking `submitted` means the user clicked the site's own Submit
 button, and that is the only thing that makes an application real.
 
 ### Setup (`/setup`)
+
+![Setup — profile, platforms, filters, notifications](docs/media/07-setup.png)
 
 Everything the agents hunt with: the profile they may cite, the platforms to
 poll, the filters applied to what comes back, and the button that starts a run
