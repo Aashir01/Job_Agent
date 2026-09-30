@@ -24,6 +24,7 @@ from .boards import (
     Arbeitnow,
     HackerNewsHiring,
     Himalayas,
+    Jooble,
     RemoteOK,
     Remotive,
     WeWorkRemotely,
@@ -54,6 +55,16 @@ AGGREGATORS: dict[str, Callable[[Settings, list[str]], Source]] = {
     # Whatever actor APIFY_ACTOR_ID names — the actor, not this repo, decides
     # what it fetches. Inert until the key and the actor id are both set.
     "apify": lambda settings, keywords: build_apify(settings, keywords),
+    # A licensed aggregator: Jooble bears the sourcing, and its free plan is a
+    # lifetime quota of 500 requests, so one page per run is the default.
+    "jooble": lambda settings, keywords: Jooble(
+        settings.jooble_api_key,
+        base=settings.jooble_api_base,
+        keywords=", ".join(keywords) or "python engineer",
+        location=settings.jooble_location,
+        result_on_page=settings.jooble_result_on_page,
+        pages=settings.jooble_pages,
+    ),
 }
 
 PLATFORM_IDS: tuple[str, ...] = ATS_PLATFORMS + tuple(AGGREGATORS)
@@ -72,6 +83,7 @@ LABELS: dict[str, str] = {
     "hn_hiring": 'Hacker News "Who is hiring"',
     "adzuna": "Adzuna (needs an API key)",
     "apify": "Apify actor (needs an API key)",
+    "jooble": "Jooble (needs an API key)",
 }
 
 # LinkedIn and Indeed are deliberately absent: they are harvested by the Chrome

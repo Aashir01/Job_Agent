@@ -76,7 +76,9 @@ already has: the extension harvests pages they are already looking at, and
 `import-urls` reads a file of postings they collected by hand. Both produce
 ordinary `jobs` rows — Scout skips them because the URL is stored, and the
 Analyst, Gatekeeper, Tailor and Scribe treat them exactly like something Scout
-discovered itself.
+discovered itself. For automatic LinkedIn-sourced coverage the answer is a
+licensed aggregator instead — Jooble, and Adzuna, both already wired up — where
+the sourcing relationship is theirs to hold rather than the user's.
 
 ## The score is explainable, not learned
 

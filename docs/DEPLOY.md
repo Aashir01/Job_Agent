@@ -54,6 +54,7 @@ Any one of these is enough:
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | recommended | see §4 |
 | `ADZUNA_APP_ID`, `ADZUNA_APP_KEY` | no | one extra job source |
 | `APIFY_API_KEY`, `APIFY_ACTOR_ID`, `APIFY_INPUT` | no | run an Apify actor as a job source |
+| `JOOBLE_API_KEY` | no | Jooble, a licensed job aggregator (free plan: 500 requests, lifetime) |
 | `RESEND_API_KEY`, `FROM_EMAIL`, `NOTIFY_EMAIL` | no | digest by email |
 
 Under the **Variables** tab (not secrets — these are not sensitive):
@@ -201,7 +202,7 @@ wrong:
 | `AGENT_KEY` | — | ✅ (generated) | ✅ (same value) |
 | `API_URL` | — | — | ✅ |
 | Notification keys | ✅ | ✅ | — |
-| `ADZUNA_*`, `APIFY_*` | ✅ | ✅ | — |
+| `ADZUNA_*`, `APIFY_*`, `JOOBLE_*` | ✅ | ✅ | — |
 | `DASHBOARD_URL` | ✅ (variable) | ✅ | — |
 
 The extension needs the API URL and `AGENT_KEY` too, pasted into its options page.

@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 
 import httpx
 
-from .base import RawJob, Source, get_json, parse_when, safe, strip_html
+from .base import RawJob, Source, get_json, parse_salary, parse_when, safe, strip_html
 
 log = logging.getLogger(__name__)
 
@@ -236,6 +236,85 @@ class Adzuna(Source):
                         currency={"gb": "GBP", "nl": "EUR", "de": "EUR", "ca": "CAD"}.get(country),
                     )
                 )
+        return safe(self.name, jobs)
+
+
+class Jooble(Source):
+    """Jooble's REST API, an aggregator that licenses its listings.
+
+    Two Jooble quirks drive the shape of this adapter:
+
+    * The free plan is a **lifetime** quota of 500 requests per key, not a
+      monthly one. So this fetches a single page per run by default and stops
+      as soon as a page comes back empty, rather than paging through results.
+    * Each country domain issues its own key and returns only that country's
+      listings — a key from ``jooble.org`` is US-only. The base URL is therefore
+      a setting, and ``keywords`` and ``location`` are both required by the API.
+    """
+
+    name = "jooble"
+
+    def __init__(
+        self,
+        api_key: str,
+        base: str = "https://jooble.org/api",
+        keywords: str = "python engineer",
+        location: str = "United States",
+        result_on_page: int = 20,
+        pages: int = 1,
+    ):
+        self.api_key = api_key
+        self.base = base.rstrip("/")
+        self.keywords = keywords
+        self.location = location
+        self.result_on_page = result_on_page
+        self.pages = max(1, pages)
+
+    async def fetch(self, client: httpx.AsyncClient) -> list[RawJob]:
+        if not self.api_key:
+            log.info("jooble: no api key, skipping")
+            return []
+
+        jobs: list[RawJob] = []
+        for page in range(1, self.pages + 1):
+            try:
+                resp = await client.post(
+                    f"{self.base}/{self.api_key}",
+                    json={
+                        "keywords": self.keywords,
+                        "location": self.location,
+                        "page": str(page),
+                        "ResultOnPage": self.result_on_page,
+                    },
+                    headers={"Content-Type": "application/json"},
+                )
+                resp.raise_for_status()
+                data = resp.json()
+            except (httpx.HTTPError, ValueError) as exc:
+                log.warning("jooble page %s failed: %s", page, exc)
+                break
+
+            found = data.get("jobs") or []
+            for item in found:
+                salary_min, salary_max, currency = parse_salary(item.get("salary"))
+                jobs.append(
+                    RawJob(
+                        source=self.name,
+                        source_url=item.get("link", ""),
+                        title=item.get("title", ""),
+                        company_name=item.get("company", ""),
+                        # Snippets are short and sometimes HTML.
+                        description=strip_html(item.get("snippet")),
+                        location_raw=item.get("location") or "",
+                        posted_at=parse_when(item.get("updated")),
+                        salary_min=salary_min,
+                        salary_max=salary_max,
+                        currency=currency,
+                    )
+                )
+            if not found:
+                break
+
         return safe(self.name, jobs)
 
 

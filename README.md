@@ -44,7 +44,7 @@ You: /setup → Run   ──HTTP──▶ FastAPI on Render (one 256MB machine)
 | `api/app/agents/` | Scout, Analyst, Gatekeeper, Tailor, Scribe, Connector, Courier, Chaser |
 | `api/app/llm/` | Providers behind one interface: OpenRouter, Gemini, Groq, and the router that budgets and logs every call |
 | `api/app/routes/` | The HTTP surface, including the approval gate and the resume download |
-| `api/tests/` | 215 tests, mostly about the things that must never happen |
+| `api/tests/` | 222 tests, mostly about the things that must never happen |
 | `web/` | Next.js review dashboard, keyboard-driven |
 | `extension/` | MV3 extension and the tests that enforce its limits |
 
@@ -52,7 +52,7 @@ You: /setup → Run   ──HTTP──▶ FastAPI on Render (one 256MB machine)
 
 | Agent | Approval | What it does |
 |---|---|---|
-| **Scout** | none | Polls Greenhouse, Lever, Ashby, Workable, SmartRecruiters, Remotive, RemoteOK, Arbeitnow, Himalayas, WeWorkRemotely, Adzuna, an Apify actor and HN "Who is hiring". Dedupes on URL, then a normalised hash, then embedding cosine > 0.92 |
+| **Scout** | none | Polls Greenhouse, Lever, Ashby, Workable, SmartRecruiters, Remotive, RemoteOK, Arbeitnow, Himalayas, WeWorkRemotely, Adzuna, Jooble, an Apify actor and HN "Who is hiring". Dedupes on URL, then a normalised hash, then embedding cosine > 0.92 |
 | **Analyst** | none | One cheap strict-JSON call per job: requirements, seniority, salary band, **geo restriction**, sponsorship language, screening questions, and the keywords a resume should mirror |
 | **Gatekeeper** | none | Pure rules, no LLM. Kills what you cannot apply to before anything expensive runs |
 | **Tailor** | none | Retrieves bullets by similarity, reorders, rewords lightly — and mechanically rejects any rewrite it cannot trace back to the bank |
@@ -142,7 +142,7 @@ openssl rand -hex 32     # this is your AGENT_KEY
 ```
 
 Free tiers you need: Supabase, one LLM key, Fly.io, Vercel. Optional: Resend
-(email), Hunter (address verification), Adzuna, Apify.
+(email), Hunter (address verification), Adzuna, Jooble, Apify.
 
 ### LLM providers
 
@@ -299,6 +299,18 @@ afterwards, and the next batch analyses, scores and packages them like anything
 it discovered itself. Re-running the same file adds nothing, because
 `source_url` is unique.
 
+### Searching Jooble
+
+Jooble is a licensed aggregator, so its listings come with a licence rather than
+a scraping argument. Set `JOOBLE_API_KEY` and it appears as **Jooble** in the
+`/setup` picker. Two things to know before leaning on it:
+
+- The free plan is a **lifetime** quota of 500 requests, not a monthly one, so
+  `JOOBLE_PAGES` defaults to 1 — one request per run. Raise it deliberately.
+- Each country domain issues its own key and returns only that country's jobs, so
+  a key from `jooble.org` is US-only. `JOOBLE_API_BASE` and `JOOBLE_LOCATION`
+  must match the domain you registered on (e.g. `https://uk.jooble.org/api`).
+
 ### Running an Apify actor
 
 Any Apify actor can feed Scout as an ordinary source. Set `APIFY_API_KEY` and
@@ -322,7 +334,7 @@ return, and the button that starts a run with all of it.
 - **Profile** — the facts the Tailor, Scribe and Connector may cite. The API
   rejects an unknown field with a 400 rather than letting PostgREST reject the
   whole row (PGRST204), which is how a real profile once failed to load at all.
-- **Platforms** — the thirteen fetchable ones, plus the seeded company boards with
+- **Platforms** — the fourteen fetchable ones, plus the seeded company boards with
   their per-board switch, last-polled time and yield. LinkedIn and Indeed are
   deliberately absent: the extension harvests those from pages you are already
   on, and nothing is scraped server-side.
@@ -413,7 +425,7 @@ running out of quota is diagnosable rather than mysterious.
 ## Tests
 
 ```bash
-cd api && python -m pytest          # 215 tests
+cd api && python -m pytest          # 222 tests
 cd web && npm run typecheck && npm run build
 cd extension && npm test            # the invariants above, enforced
 ```

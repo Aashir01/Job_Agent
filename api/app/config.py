@@ -87,6 +87,16 @@ class Settings(BaseSettings):
     apify_input: str = "{}"           # the actor's input, as a JSON object
     apify_max_items: int = 200
 
+    # ── Jooble (optional extra source) ────────────────────────────────────
+    # The free plan is a LIFETIME quota of 500 requests per key, not monthly, so
+    # jooble_pages stays at 1 by default. Each country domain issues its own key
+    # and returns only that country's listings — a jooble.org key is US-only.
+    jooble_api_key: str = ""
+    jooble_api_base: str = "https://jooble.org/api"
+    jooble_location: str = "United States"
+    jooble_result_on_page: int = 20
+    jooble_pages: int = 1
+
     # ── Sponsorship register URLs (§6). Overridable: the Home Office
     #    republishes under a dated filename every few weeks.
     register_url_uk: str = ""

@@ -103,6 +103,12 @@ exceed `SCOUT_MAX_JOBS_PER_BATCH` on its own. Raise **max jobs** from the Setup
 page rather than editing `.env` — the per-run value overrides the setting and is
 recorded on the batch, so the next run is explicable.
 
+**Jooble went quiet.**
+Its free plan is a lifetime quota of 500 requests per key — it does not reset
+monthly, so once spent it stays spent. That is why `JOOBLE_PAGES` defaults to 1.
+A `403` in the batch's source errors means the key is wrong, or it was registered
+on a different country domain than `JOOBLE_API_BASE` names.
+
 **Every source shows zero.**
 The platform picker saved a selection and the board you want is not in it. An
 empty selection means *all platforms*; a non-empty one means exactly those
