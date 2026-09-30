@@ -26,13 +26,22 @@ class FakeDB:
         self.rpc_returns: dict[str, Any] = rpc or {}
         self.rpc_calls: list[tuple[str, dict]] = []
         self.writes: list[tuple[str, str, Any]] = []
+        # Every select, so a test can assert the query a route actually built —
+        # the fake does not parse PostgREST's raw `or` expression.
+        self.reads: list[dict] = []
         self._id = 0
 
     def _match(self, row: dict, eq: dict | None) -> bool:
         return all(row.get(k) == v for k, v in (eq or {}).items())
 
     async def select(self, table, *, columns="*", eq=None, in_=None, gte=None, lte=None,
-                     not_null=None, is_null=None, order=None, limit=None, offset=None):
+                     ilike=None, or_=None, not_null=None, is_null=None, order=None,
+                     limit=None, offset=None):
+        self.reads.append({
+            "table": table, "columns": columns, "eq": eq, "in_": in_, "ilike": ilike,
+            "or_": or_, "not_null": not_null, "is_null": is_null,
+            "order": order, "limit": limit, "offset": offset,
+        })
         rows = [r for r in self.tables.get(table, []) if self._match(r, eq)]
         for col, values in (in_ or {}).items():
             rows = [r for r in rows if r.get(col) in set(values)]
@@ -40,6 +49,11 @@ class FakeDB:
             rows = [r for r in rows if r.get(col) is not None and r[col] <= value]
         for col, value in (gte or {}).items():
             rows = [r for r in rows if r.get(col) is not None and r[col] >= value]
+        # `*` is PostgREST's wildcard; the fake handles the prefix and contains
+        # forms the API builds. A raw `or_` is recorded, not evaluated.
+        for col, pattern in (ilike or {}).items():
+            needle = pattern.strip("*").lower()
+            rows = [r for r in rows if needle in str(r.get(col) or "").lower()]
         for col in not_null or ():
             rows = [r for r in rows if r.get(col) is not None]
         for col in is_null or ():

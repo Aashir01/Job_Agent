@@ -89,6 +89,11 @@ Check the last batch: `GET /batch` shows `killed_by_gatekeeper` and
 seed boards have rotted — run `python db/seeds/verify_boards.py`. A high score
 kill usually means the bullet bank is too small to match anything.
 
+Those are only counts. **All jobs** (`/jobs`) shows the postings themselves,
+filterable, with the kill reason recorded on each row — which is what tells you
+whether it was eligibility or evidence, and whether the postings were ever
+stored at all.
+
 **Only one platform is contributing.**
 Read *Jobs by platform* on the batch detail page. Sources are polled in code
 order and the seeds sort `kind.asc`, so a cap applied by arrival order lets

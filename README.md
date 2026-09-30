@@ -44,7 +44,7 @@ You: /setup → Run   ──HTTP──▶ FastAPI on Render (one 256MB machine)
 | `api/app/agents/` | Scout, Analyst, Gatekeeper, Tailor, Scribe, Connector, Courier, Chaser |
 | `api/app/llm/` | Providers behind one interface: OpenRouter, Gemini, Groq, and the router that budgets and logs every call |
 | `api/app/routes/` | The HTTP surface, including the approval gate and the resume download |
-| `api/tests/` | 222 tests, mostly about the things that must never happen |
+| `api/tests/` | 233 tests, mostly about the things that must never happen |
 | `web/` | Next.js review dashboard, keyboard-driven |
 | `extension/` | MV3 extension and the tests that enforce its limits |
 
@@ -391,6 +391,22 @@ everything. `GET /batch` shows the breakdown for the last runs, and the batch
 page now also carries **jobs by platform** — because a cap applied in source
 order is the other way a batch comes back empty, however healthy the boards are.
 
+### All jobs
+
+`/jobs` is the other view of the same data. The review queue can only ever show
+what survived the Gatekeeper and scored high enough to be packaged; this shows
+**every posting Scout stored**, including everything it threw away, with the kill
+reason on the ones it killed.
+
+Filter it by hand — free-text search across title, location and source, plus
+platform, remote policy, track and analysis status, with sort and page size.
+Every filter is applied by the API (not the browser) and held in the URL, so a
+view can be bookmarked and shared with yourself.
+
+This is the fastest way to answer *why is my queue thin?* If the postings are
+there and killed, it is the Gatekeeper and the reason is recorded per row. If
+they were never stored at all, it is a board that has gone quiet.
+
 ### Windows
 
 A few details bite on Windows:
@@ -446,7 +462,7 @@ running out of quota is diagnosable rather than mysterious.
 ## Tests
 
 ```bash
-cd api && python -m pytest          # 222 tests
+cd api && python -m pytest          # 233 tests
 cd web && npm run typecheck && npm run build
 cd extension && npm test            # the invariants above, enforced
 ```

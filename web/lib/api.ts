@@ -7,6 +7,7 @@ import type {
   BoardInfo,
   DueOutreach,
   ExtensionQueueRow,
+  JobFeed,
   NotifyStatus,
   NotifyTestResult,
   Profile,
@@ -70,6 +71,34 @@ export function getQueue(tier?: Tier, status = "queued"): Promise<QueueResponse>
 
 export function getPackage(id: string): Promise<ReviewPackage> {
   return call<ReviewPackage>(`/packages/${id}`);
+}
+
+/**
+ * The raw feed: every stored posting, not only the ones that became a package.
+ * Filters are all optional and all server-side.
+ */
+export function getJobs(
+  params: {
+    q?: string;
+    platform?: string;
+    remotePolicy?: string;
+    track?: string;
+    status?: string;
+    sort?: string;
+    limit?: number;
+    offset?: number;
+  } = {},
+): Promise<JobFeed> {
+  const query = new URLSearchParams();
+  if (params.q) query.set("q", params.q);
+  if (params.platform) query.set("platform", params.platform);
+  if (params.remotePolicy) query.set("remote_policy", params.remotePolicy);
+  if (params.track) query.set("track", params.track);
+  if (params.status) query.set("status", params.status);
+  if (params.sort) query.set("sort", params.sort);
+  if (params.limit) query.set("limit", String(params.limit));
+  if (params.offset) query.set("offset", String(params.offset));
+  return call<JobFeed>(`/jobs?${query}`);
 }
 
 export function approvePackage(

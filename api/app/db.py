@@ -80,6 +80,8 @@ class Database:
         in_: dict[str, Sequence[Any]] | None = None,
         gte: dict[str, Any] | None = None,
         lte: dict[str, Any] | None = None,
+        ilike: dict[str, str] | None = None,
+        or_: str | None = None,
         not_null: Sequence[str] | None = None,
         is_null: Sequence[str] | None = None,
         order: str | None = None,
@@ -96,6 +98,14 @@ class Database:
             params[col] = f"gte.{val}"
         for col, val in (lte or {}).items():
             params[col] = f"lte.{val}"
+        # PostgREST patterns use `*` as the wildcard, so `foo*` is a prefix
+        # match and `*foo*` a contains match.
+        for col, pattern in (ilike or {}).items():
+            params[col] = f"ilike.{pattern}"
+        # Raw PostgREST `or=(a.ilike.*x*,b.ilike.*x*)`. Passed through as a
+        # string because the expression cannot be expressed as a column map.
+        if or_:
+            params["or"] = or_
         for col in not_null or ():
             params[col] = "not.is.null"
         for col in is_null or ():

@@ -91,6 +91,45 @@ export interface QueueResponse {
   total: number;
 }
 
+/** One row of the raw feed behind /jobs — see api/app/routes/jobs.py. */
+export interface JobRow {
+  id: string;
+  source: string | null;
+  source_url: string | null;
+  title: string | null;
+  location_raw: string | null;
+  /** global | geo_restricted | hybrid | onsite */
+  remote_policy: string | null;
+  /** remote_fte | relocation | contract */
+  track: string | null;
+  geo_restriction: string[] | null;
+  salary_min: number | null;
+  salary_max: number | null;
+  currency: string | null;
+  posted_at: string | null;
+  discovered_at: string | null;
+  analysed_at: string | null;
+  killed_reason: string | null;
+  company_id: string | null;
+  /** Embedded to-one: the company the posting resolved to. */
+  companies: { id: string; name: string | null; hires_internationally: boolean | null } | null;
+  /** Embedded to-many: empty when nothing was ever built from this posting. */
+  packages: {
+    id: string;
+    tier: Tier | null;
+    fit_score: number | null;
+    status: PackageStatus;
+  }[] | null;
+}
+
+export interface JobFeed {
+  jobs: JobRow[];
+  limit: number;
+  offset: number;
+  /** True when the next page exists — the API reads one row beyond the page. */
+  has_more: boolean;
+}
+
 export interface ApplicationRow {
   id: string;
   submitted_at: string | null;
