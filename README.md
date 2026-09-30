@@ -343,70 +343,6 @@ Point this only at sites whose terms permit automated access. LinkedIn and Indee
 are excluded by design — their terms forbid it, and the account at risk is the
 one your applications are sent from. See [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
-### The Setup page
-
-Everything the agents hunt with is set at `/setup`, not in a seed file or an
-`.env`: your profile, the platforms to poll, the filters applied to what they
-return, and the button that starts a run with all of it.
-
-- **Profile** — the facts the Tailor, Scribe and Connector may cite. The API
-  rejects an unknown field with a 400 rather than letting PostgREST reject the
-  whole row (PGRST204), which is how a real profile once failed to load at all.
-- **Platforms** — the fourteen fetchable ones, plus the seeded company boards with
-  their per-board switch, last-polled time and yield. LinkedIn and Indeed are
-  deliberately absent: the extension harvests those from pages you are already
-  on, and nothing is scraped server-side.
-- **Filters** — `keywords`, `locations`, `exclude_keywords`, `remote_only`,
-  `salary_floor_usd`, `seniority`, and per-run overrides for `max_jobs` and the
-  LLM budget. All optional, all deterministic, and applied *during discovery*:
-  a filtered posting never spends an Analyst call. An undisclosed salary is
-  never a reason to drop a posting, and an unlevelled title is ambiguous rather
-  than a mismatch.
-- **Run** — *Save and run* persists the choices and starts the batch in one
-  call, so a run can never go out with a configuration you did not just
-  confirm. Every run reads the same row, so a later run inherits it.
-
-An empty platform selection means *all platforms*, so an install that never
-opens this page behaves exactly as it did before it existed.
-
-```bash
-# the same thing over HTTP, for scripts
-curl -X PATCH "$API_URL/run-settings" -H "X-Agent-Key: $AGENT_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"platforms":["greenhouse","remoteok"],"filters":{"keywords":["python"],"max_jobs":200}}'
-```
-
-Review at `/`. `J`/`K` move, `A` approves, `X` then `1`–`5` rejects with a
-reason, `E` edits. The whole fast lane approves with one button. Each package
-carries its posting link and a **Resume .docx** download. That download is
-proxied through the API (`GET /packages/{id}/resume`) and then through the
-dashboard's `/api/resume/[id]` route, because the storage bucket is private and
-the service key must never reach the browser.
-
-A batch that produces nothing is usually not a bug. Watch the two counters it
-reports: `killed_by_gatekeeper` means you could not have applied, and
-`killed_by_score` means the bullet bank was too thin to evidence the posting.
-The score is 42% skills coverage, so a bank of two bullets kills almost
-everything. `GET /batch` shows the breakdown for the last runs, and the batch
-page now also carries **jobs by platform** — because a cap applied in source
-order is the other way a batch comes back empty, however healthy the boards are.
-
-### All jobs
-
-`/jobs` is the other view of the same data. The review queue can only ever show
-what survived the Gatekeeper and scored high enough to be packaged; this shows
-**every posting Scout stored**, including everything it threw away, with the kill
-reason on the ones it killed.
-
-Filter it by hand — free-text search across title, location and source, plus
-platform, remote policy, track and analysis status, with sort and page size.
-Every filter is applied by the API (not the browser) and held in the URL, so a
-view can be bookmarked and shared with yourself.
-
-This is the fastest way to answer *why is my queue thin?* If the postings are
-there and killed, it is the Gatekeeper and the reason is recorded per row. If
-they were never stored at all, it is a board that has gone quiet.
-
 ### Windows
 
 A few details bite on Windows:
@@ -426,6 +362,167 @@ npm install --include=dev
 Set the environment variables per-shell rather than globally. Nothing else in the
 repo is platform-specific.
 
+## The dashboard
+
+Seven tabs, and one job between them: keep you in the loop without making you the
+pipeline. Everything the agents produce is visible here, and nothing leaves
+without a click.
+
+| Tab | Route | For |
+|---|---|---|
+| **Review** | `/` | The human gate: approve, edit or reject a drafted package |
+| **All jobs** | `/jobs` | Every posting Scout stored, filtered by hand |
+| **Outreach** | `/outreach` | Follow-ups that have come due, each still needing a read |
+| **Applications** | `/applications` | What was submitted, and what came back |
+| **Batches** | `/batches` | Every run: what it found, what it killed, what it cost |
+| **Extension** | `/extension` | Packages to fill in your own browser session |
+| **Setup** | `/setup` | Profile, platforms, filters, and the button that runs it |
+
+### Review (`/`)
+
+The queue on the left is ordered by tier, then score. Selecting a row opens the
+package: fit score and rationale, the eligibility verdict with its evidence and
+blockers, the resume diff, the cover letter, the screening answers, and a *Check
+before sending* list of anything the audit could not evidence.
+
+The diff is the point of the screen. Every bullet shows the wording retrieved
+from the bank, the wording the Tailor produced, and — where a rewrite was thrown
+away — the rejected text and why. That is how you watch the model try to drift
+and get stopped.
+
+Keys: `J`/`K` (or `↑`/`↓`) move, `A` approves, `X` then `1`–`5` rejects with a
+reason, `E` toggles editing, `Esc` cancels. Rejection reasons are fixed codes
+(wrong stack, seniority, eligibility, comp, company) because the scorer learns
+from them and a free-text reason teaches it nothing.
+
+**Approve all N fast-lane** clears the whole fast lane at once, capped at 20
+because that is the daily submission cap — reaching it halfway through should be
+visible rather than silent. Approving calls the Courier inline: this is the only
+place in the system where an outbound action begins, and it sits behind the
+click.
+
+`?package=<id>` deep-links to one package, which is what a digest links to so
+tapping a job on a phone lands on the job rather than a list to search.
+
+### All jobs (`/jobs`)
+
+The review queue can only show what survived the Gatekeeper and scored well
+enough to be packaged. This shows everything Scout **stored**, including what it
+threw away.
+
+Filter by hand: free-text search across title, location and source, plus
+platform, remote policy, track and analysis status, with sort and page size.
+Filters are applied by the API and held in the URL, so a view is bookmarkable.
+Each row carries the company (and whether it hires internationally), the
+platform, location, salary, remote policy, track, the fit score where a package
+exists, and the kill reason where one does not.
+
+This is the fastest way to answer *why is my queue thin?* If the postings are
+there and killed, it is the Gatekeeper and the reason is on the row. If they were
+never stored at all, it is a board that has gone quiet.
+
+### Outreach (`/outreach`)
+
+Follow-ups whose due date has passed and that are neither sent nor approved. The
+cadence (day 3, day 10) is pre-approved; this is the per-send *content* approval,
+and a body you have not read never goes out. Editing the body here is the normal
+case — the draft is a starting point, not a decision.
+
+### Applications (`/applications`)
+
+Every application with its package (tier, fit score) and its job (title, company,
+link, track), plus a funnel count per status:
+
+`submitted → acknowledged → replied → screen → interview → offer`, or
+`rejected` / `ghosted`.
+
+Status comes from the Chaser polling Gmail for replies. When one lands, an
+interview dossier is generated and served at `GET /applications/{id}/dossier`.
+
+### Batches (`/batches`)
+
+Every run with its kind, status, packages built, killed by the Gatekeeper, killed
+by score, LLM calls, cost and duration — and a detail page with the per-agent LLM
+breakdown and **jobs by platform**. The page refreshes itself while a run is in
+flight.
+
+The two kill counters are how you tell a quiet day from a broken pipeline.
+`killed_by_gatekeeper` means you could not have applied; `killed_by_score` means
+the bullet bank was too thin to evidence the posting — the score is 42% skills
+coverage, so a bank of two bullets kills almost everything. *Jobs by platform*
+exists because a cap applied in source order is the other way a batch comes back
+empty, however healthy the boards are.
+
+### Extension (`/extension`)
+
+The fill queue: approved packages that cannot be submitted by API and have to be
+filled into a career page inside your own browser session.
+
+`pending → claimed → filled → submitted`, or `abandoned`. The extension only ever
+claims one item at a time (`GET /extension/queue/next`), and the API forces
+`autosubmit: false` into the payload before handing it over — the service worker
+overwrites it again, so two independent things have to fail before a page could
+submit itself. Marking `submitted` means the user clicked the site's own Submit
+button, and that is the only thing that makes an application real.
+
+### Setup (`/setup`)
+
+Everything the agents hunt with: the profile they may cite, the platforms to
+poll, the filters applied to what comes back, and the button that starts a run
+with all of it.
+
+- **Profile** — the facts the Tailor, Scribe and Connector may cite. An unknown
+  field is refused with a 400 rather than forwarded to PostgREST, which rejects
+  the whole row with an opaque `PGRST204` — the failure that once kept a real
+  profile out of the database entirely.
+- **Platforms** — the fourteen fetchable ones plus the seeded company boards,
+  each with a switch, last-polled time and yield. LinkedIn and Indeed are
+  deliberately absent: the extension harvests those from pages you are already
+  on, and nothing is scraped server-side.
+- **Filters** — `keywords`, `locations`, `exclude_keywords`, `remote_only`,
+  `salary_floor_usd`, `seniority`, and per-run overrides for `max_jobs` and the
+  LLM budget. All optional, all deterministic, and applied *during discovery*, so
+  a filtered posting never spends an Analyst call. An undisclosed salary is never
+  a reason to drop a posting, and an unlevelled title is ambiguous rather than a
+  mismatch.
+- **Notifications** — which digest channels are wired up, which half of a pair is
+  missing, a test send, and a re-send of any past batch's digest. Credentials
+  live in the environment, not the database: a dashboard that could rewrite them
+  would be a way to redirect your digest.
+- **Run** — *Save and run* persists the choices and starts the batch in one call,
+  so a run can never go out with a configuration you did not just confirm.
+
+An empty platform selection means *all platforms*, so an install that never opens
+this page behaves exactly as it did before the page existed.
+
+```bash
+# the same thing over HTTP, for scripts
+curl -X PATCH "$API_URL/run-settings" -H "X-Agent-Key: $AGENT_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"platforms":["greenhouse","remoteok"],"filters":{"keywords":["python"],"max_jobs":200}}'
+```
+
+## The API
+
+Every route below except `/health` requires the shared secret in an `X-Agent-Key`
+header. `GET /docs` serves the generated reference, which is the authority if
+this table drifts.
+
+| Area | Routes |
+|---|---|
+| Health | `GET /health` (open), `GET /health/quota` |
+| Setup | `GET`/`PATCH /profile`, `GET /sources`, `POST`/`PATCH`/`DELETE /sources/boards[/{id}]`, `GET`/`PATCH /run-settings` |
+| Pipeline | `POST /batch/run`, `GET /batch`, `GET /batch/{id}`, `POST /batch/registers/refresh` |
+| Jobs | `GET /jobs` |
+| Review gate | `GET /packages`, `GET`/`PATCH /packages/{id}`, `POST /packages/{id}/approve`, `POST /packages/{id}/reject`, `POST /packages/fast-lane/approve-all`, `GET /packages/{id}/resume` |
+| Outreach | `POST /chaser/run`, `GET /outreach/due`, `POST /outreach/{id}/approve`, `GET /applications`, `GET /applications/{id}/dossier` |
+| Extension | `GET /extension/queue/next`, `GET /extension/queue`, `POST /extension/queue/{id}/status`, `POST /extension/sightings`, `GET /extension/profile` |
+| Notifications | `GET /notify/status`, `POST /notify/test`, `POST /notify/resend/{batch_id}` |
+
+The resume download is proxied twice on purpose — `GET /packages/{id}/resume` on
+the API, then the dashboard's `/api/resume/[id]` route — because the storage
+bucket is private and the service key must never reach the browser.
+
 ## Budget
 
 | Resource | Free limit | Spent per batch |
@@ -435,7 +532,7 @@ repo is platform-specific.
 | Groq | rate-limited | fallback only |
 | Fly.io | 3 shared VMs | one 256MB machine, asleep between batches |
 | Supabase | 500MB | ~40k jobs before pruning |
-| GitHub Actions | 2000 min/mo | 2 runs × ~8 min |
+| GitHub Actions | 2000 min/mo | only the runs you trigger; nothing is scheduled |
 | Resend | 3000/mo | ≤ 30 emails/day, capped atomically in Postgres |
 
 `LLM_CALLS_PER_BATCH` (default 300) is the hard per-batch ceiling. For a first

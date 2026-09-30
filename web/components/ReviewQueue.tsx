@@ -173,8 +173,8 @@ export function ReviewQueue({
       <div className="animate-fade-in rounded-2xl border border-dashed border-edge bg-panel/40 px-6 py-16 text-center">
         <p className="text-base font-medium text-fg">The queue is clear.</p>
         <p className="mx-auto mt-1.5 max-w-sm text-sm text-muted">
-          Nothing is waiting on you. The next batch runs at 02:00 and 14:00 UTC and will
-          refill this queue.
+          Nothing is waiting on you. Run the agents again from here or from Setup and
+          new packages land in this queue.
         </p>
       </div>
     );
